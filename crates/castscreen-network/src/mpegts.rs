@@ -158,52 +158,54 @@ impl MpegTsMuxer {
             packet[2] = (pid & 0xFF) as u8;
 
             // Byte 3: Scrambling [00], Adaptation field control [01 or 11], Continuity counter [4 bits]
-            let mut adaptation_len = 0usize;
             let needs_pcr = is_first && insert_pcr;
+            let remaining = total - offset;
 
-            let available_payload = if needs_pcr {
-                // Header (4) + Adaptation Length (1) + Flags (1) + PCR (6) = 12 bytes
-                adaptation_len = 8;
-                TS_PACKET_SIZE - 4 - 1 - adaptation_len
-            } else {
-                TS_PACKET_SIZE - 4
-            };
+            let chunk_len;
+            if needs_pcr {
+                // Header (4) + Adapt Len (1) + Flags (1) + PCR (6) = 12 bytes minimum
+                // Max payload with PCR is 188 - 12 = 176
+                chunk_len = remaining.min(176);
+                let adapt_len = 183 - chunk_len;
 
-            let chunk_len = (total - offset).min(available_payload);
+                packet[3] = 0x30 | (*continuity & 0x0F); // Adaptation + payload
+                packet[4] = adapt_len as u8;
+                packet[5] = 0x10; // PCR flag
 
-            if chunk_len < available_payload || needs_pcr {
-                // Requires Adaptation Field for padding or PCR
-                let padding_needed = available_payload - chunk_len;
-                let total_adapt_len = adaptation_len + padding_needed;
+                // Write 42-bit PCR: pts in 90kHz scale
+                let pcr_base = pts;
+                packet[6] = ((pcr_base >> 25) & 0xFF) as u8;
+                packet[7] = ((pcr_base >> 17) & 0xFF) as u8;
+                packet[8] = ((pcr_base >> 9) & 0xFF) as u8;
+                packet[9] = ((pcr_base >> 1) & 0xFF) as u8;
+                packet[10] = (((pcr_base & 0x01) << 7) | 0x7E) as u8;
+                packet[11] = 0x00; // PCR extension
 
-                packet[3] = 0x30 | (*continuity & 0x0F); // Adaptation field + payload
-                packet[4] = total_adapt_len as u8;
-
-                let mut adapt_flags = 0u8;
-                if needs_pcr {
-                    adapt_flags |= 0x10; // PCR flag
-                }
-                packet[5] = adapt_flags;
-
-                if needs_pcr {
-                    // Write 42-bit PCR: (pts * 300) for 27MHz system clock
-                    let pcr_base = pts;
-                    packet[6] = ((pcr_base >> 25) & 0xFF) as u8;
-                    packet[7] = ((pcr_base >> 17) & 0xFF) as u8;
-                    packet[8] = ((pcr_base >> 9) & 0xFF) as u8;
-                    packet[9] = ((pcr_base >> 1) & 0xFF) as u8;
-                    packet[10] = (((pcr_base & 0x01) << 7) | 0x7E) as u8;
-                    packet[11] = 0x00; // PCR extension
-                }
-
-                // Copy payload
-                let payload_start = 4 + 1 + total_adapt_len;
-                packet[payload_start..payload_start + chunk_len]
+                // Copy payload at the end of the packet (exactly chunk_len bytes)
+                let payload_start = 5 + adapt_len;
+                packet[payload_start..188]
                     .copy_from_slice(&pes_data[offset..offset + chunk_len]);
+            } else if remaining >= 184 {
+                // Pure payload: 184 bytes
+                chunk_len = 184;
+                packet[3] = 0x10 | (*continuity & 0x0F); // Payload only
+                packet[4..188].copy_from_slice(&pes_data[offset..offset + chunk_len]);
             } else {
-                // No adaptation field, pure payload
-                packet[3] = 0x10 | (*continuity & 0x0F);
-                packet[4..4 + chunk_len].copy_from_slice(&pes_data[offset..offset + chunk_len]);
+                // Padding required via adaptation field
+                chunk_len = remaining;
+                packet[3] = 0x30 | (*continuity & 0x0F); // Adaptation + payload
+
+                if chunk_len == 183 {
+                    packet[4] = 0x00; // Adaptation field length 0
+                    packet[5..188].copy_from_slice(&pes_data[offset..offset + chunk_len]);
+                } else {
+                    let adapt_len = 183 - chunk_len;
+                    packet[4] = adapt_len as u8;
+                    packet[5] = 0x00; // Flags: no optional fields, remaining bytes are stuffing (0xFF)
+                    let payload_start = 5 + adapt_len;
+                    packet[payload_start..188]
+                        .copy_from_slice(&pes_data[offset..offset + chunk_len]);
+                }
             }
 
             *continuity = (*continuity + 1) & 0x0F;
