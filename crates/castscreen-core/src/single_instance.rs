@@ -37,11 +37,11 @@ impl SingleInstanceGuard {
 
                         // Try to bring the existing window to the front
                         let title_hstring = HSTRING::from(window_title);
-                        let existing_hwnd: HWND = FindWindowW(None, &title_hstring);
-
-                        if !existing_hwnd.is_invalid() {
-                            let _ = ShowWindow(existing_hwnd, SHOW_WINDOW_CMD(9));
-                            let _ = SetForegroundWindow(existing_hwnd);
+                        if let Ok(existing_hwnd) = FindWindowW(None, &title_hstring) {
+                            if !existing_hwnd.is_invalid() {
+                                let _ = ShowWindow(existing_hwnd, SHOW_WINDOW_CMD(9));
+                                let _ = SetForegroundWindow(existing_hwnd);
+                            }
                         }
 
                         if show_alert {
