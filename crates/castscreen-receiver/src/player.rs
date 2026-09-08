@@ -4,10 +4,6 @@
 //! so the user can verify audio levels and game sound before going live.
 
 use thiserror::Error;
-use windows::Win32::Media::Audio::*;
-use windows::Win32::System::Com::{
-    CoCreateInstance, CoInitializeEx, CoUninitialize, CLSCTX_ALL, COINIT_MULTITHREADED,
-};
 
 #[derive(Error, Debug)]
 pub enum PlayerError {
@@ -16,7 +12,9 @@ pub enum PlayerError {
 }
 
 pub struct AudioPlayer {
+    #[allow(dead_code)]
     sample_rate: u32,
+    #[allow(dead_code)]
     channels: u16,
 }
 

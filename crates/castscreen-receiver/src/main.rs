@@ -25,7 +25,7 @@ fn main() -> Result<()> {
     net_config.port = 9000;
     net_config.srt_latency_ms = 1000; // 1 second Wi-Fi buffer
 
-    let mut receiver = SrtReceiver::new(net_config)?;
+    let _receiver = SrtReceiver::new(net_config)?;
     let mut hud = ReceiverHud::new();
 
     let mut stats = ReceiverStats::default();

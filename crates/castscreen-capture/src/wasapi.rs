@@ -89,13 +89,14 @@ impl WasapiLoopbackCapture {
         let capture_client: IAudioCaptureClient = audio_client.GetService()?;
         audio_client.Start()?;
 
+        let sample_rate = format_ref.nSamplesPerSec;
+        let channels = format_ref.nChannels as usize;
+
         tracing::info!(
             "WASAPI Loopback started: {}Hz, {} channels",
-            format_ref.nSamplesPerSec,
-            format_ref.nChannels
+            sample_rate,
+            channels
         );
-
-        let channels = format_ref.nChannels as usize;
 
         while running.load(Ordering::Relaxed) {
             let packet_length = capture_client.GetNextPacketSize().unwrap_or(0);

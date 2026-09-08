@@ -8,7 +8,6 @@ use windows::core::Interface;
 use windows::Win32::Graphics::Direct3D::*;
 use windows::Win32::Graphics::Direct3D11::*;
 use windows::Win32::Graphics::Dxgi::*;
-use windows::Win32::Graphics::Dxgi::Common::*;
 
 #[derive(Error, Debug)]
 pub enum DxgiCaptureError {
@@ -54,8 +53,7 @@ impl DxgiScreenCapture {
             while let Ok(adapter) = factory.EnumAdapters1(adapter_idx) {
                 let mut output_idx = 0;
                 while let Ok(output) = adapter.EnumOutputs(output_idx) {
-                    let mut desc = DXGI_OUTPUT_DESC::default();
-                    if output.GetDesc(&mut desc).is_ok() {
+                    if let Ok(desc) = output.GetDesc() {
                         let width = (desc.DesktopCoordinates.right - desc.DesktopCoordinates.left).abs() as u32;
                         let height = (desc.DesktopCoordinates.bottom - desc.DesktopCoordinates.top).abs() as u32;
 
@@ -117,8 +115,7 @@ impl DxgiScreenCapture {
             let output1: IDXGIOutput1 = output.cast()?;
             let duplication = output1.DuplicateOutput(&device)?;
 
-            let mut desc = DXGI_OUTPUT_DESC::default();
-            output.GetDesc(&mut desc)?;
+            let desc = output.GetDesc()?;
 
             let width = (desc.DesktopCoordinates.right - desc.DesktopCoordinates.left).abs() as u32;
             let height = (desc.DesktopCoordinates.bottom - desc.DesktopCoordinates.top).abs() as u32;
