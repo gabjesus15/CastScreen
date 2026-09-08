@@ -8,6 +8,7 @@ use castscreen_core::{
     ACCENT_LIVE, BG_CANVAS, BG_CONTROL, BG_PANEL, BORDER_SUBTLE, TEXT_MUTED, TEXT_PRIMARY,
     TEXT_SECONDARY,
 };
+use castscreen_network::{ReceiverStats, SrtReceiver};
 use eframe::egui::{self, Color32, Layout, Rect, RichText, Rounding, Stroke, Vec2};
 
 pub struct ReceiverGuiApp {
