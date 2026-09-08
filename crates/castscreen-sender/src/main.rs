@@ -10,8 +10,6 @@ use anyhow::Result;
 use castscreen_core::CastScreenConfig;
 use controller::StreamController;
 use gui::DashboardUi;
-use std::thread;
-use std::time::Duration;
 
 fn main() -> Result<()> {
     tracing_subscriber::fmt()

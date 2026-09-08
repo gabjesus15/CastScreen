@@ -11,8 +11,6 @@ use anyhow::Result;
 use castscreen_core::{NetworkConfig, VuMeterLevel};
 use castscreen_network::{ReceiverStats, SrtReceiver};
 use hud::ReceiverHud;
-use std::thread;
-use std::time::Duration;
 
 fn main() -> Result<()> {
     tracing_subscriber::fmt()
