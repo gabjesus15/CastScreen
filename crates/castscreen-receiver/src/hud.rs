@@ -8,8 +8,7 @@ use castscreen_core::{
     ACCENT_LIVE, BG_CANVAS, BG_CONTROL, BG_PANEL, BORDER_SUBTLE, TEXT_MUTED, TEXT_PRIMARY,
     TEXT_SECONDARY,
 };
-use castscreen_network::{ReceiverStats, SrtReceiver};
-use eframe::egui::{self, Color32, Layout, Rect, RichText, Rounding, Vec2};
+use eframe::egui::{self, Color32, Layout, Rect, RichText, Rounding, Stroke, Vec2};
 
 pub struct ReceiverGuiApp {
     _receiver: SrtReceiver,
@@ -54,7 +53,7 @@ impl eframe::App for ReceiverGuiApp {
                 .frame(
                     egui::Frame::none()
                         .fill(BG_PANEL)
-                        .stroke(Stroke::new(1.0, BORDER_SUBTLE))
+                        .stroke(Stroke::new(1.0_f32, BORDER_SUBTLE))
                         .inner_margin(10.0),
                 )
                 .show(ctx, |ui| {
@@ -92,7 +91,7 @@ impl eframe::App for ReceiverGuiApp {
                                     egui::Button::new(RichText::new(fs_text).size(11.0))
                                         .fill(BG_CONTROL)
                                         .rounding(Rounding::same(6.0)),
-                                )
+                                 )
                                 .clicked()
                             {
                                 ctx.send_viewport_cmd(egui::ViewportCommand::Fullscreen(!is_fullscreen));
@@ -113,7 +112,7 @@ impl eframe::App for ReceiverGuiApp {
                 .frame(
                     egui::Frame::none()
                         .fill(BG_PANEL)
-                        .stroke(Stroke::new(1.0, BORDER_SUBTLE))
+                        .stroke(Stroke::new(1.0_f32, BORDER_SUBTLE))
                         .inner_margin(12.0),
                 )
                 .show(ctx, |ui| {
@@ -125,10 +124,10 @@ impl eframe::App for ReceiverGuiApp {
 
                         ui.add_space(14.0);
                         ui.label(RichText::new("Volumen:").color(TEXT_SECONDARY).size(11.0));
-                        ui.add(
-                            egui::Slider::new(&mut self.master_volume, 0.0..=1.0)
-                                .show_value(false)
-                                .desired_width(90.0),
+                        ui.add_sized(
+                            [90.0, 18.0],
+                            egui::Slider::new(&mut self.master_volume, 0.0_f32..=1.0_f32)
+                                .show_value(false),
                         );
                         ui.label(
                             RichText::new(format!("{:.0}%", self.master_volume * 100.0))
@@ -183,7 +182,7 @@ impl eframe::App for ReceiverGuiApp {
 
                 // Draw video viewport container
                 painter.rect_filled(video_rect, Rounding::same(6.0), Color32::from_rgb(14, 17, 24));
-                painter.rect_stroke(video_rect, Rounding::same(6.0), Stroke::new(1.0, BORDER_SUBTLE));
+                painter.rect_stroke(video_rect, Rounding::same(6.0), Stroke::new(1.0_f32, BORDER_SUBTLE));
 
                 if self.is_connected {
                     // Active Video Signal placeholder / render surface
@@ -203,7 +202,7 @@ impl eframe::App for ReceiverGuiApp {
                     painter.circle_stroke(
                         video_rect.center(),
                         pulse_radius,
-                        Stroke::new(1.5, Color32::from_rgba_unmultiplied(99, 102, 241, alpha)),
+                        Stroke::new(1.5_f32, Color32::from_rgba_unmultiplied(99, 102, 241, alpha)),
                     );
 
                     painter.text(

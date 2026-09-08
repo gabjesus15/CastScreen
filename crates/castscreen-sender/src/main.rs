@@ -29,7 +29,7 @@ fn main() -> Result<()> {
     config.network.port = 9000;
     config.network.srt_latency_ms = 1000; // 1 second Wi-Fi buffer
 
-    let mut controller = StreamController::new(config);
+    let controller = StreamController::new(config);
     controller.refresh_audio_sessions();
 
     let native_options = eframe::NativeOptions {

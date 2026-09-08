@@ -69,7 +69,7 @@ impl eframe::App for SenderGuiApp {
             .frame(
                 egui::Frame::none()
                     .fill(BG_PANEL)
-                    .stroke(Stroke::new(1.0, BORDER_SUBTLE))
+                    .stroke(Stroke::new(1.0_f32, BORDER_SUBTLE))
                     .inner_margin(12.0),
             )
             .show(ctx, |ui| {
@@ -179,7 +179,7 @@ impl eframe::App for SenderGuiApp {
                 let col0 = &mut cols[0];
                 egui::Frame::none()
                     .fill(BG_PANEL)
-                    .stroke(Stroke::new(1.0, BORDER_SUBTLE))
+                    .stroke(Stroke::new(1.0_f32, BORDER_SUBTLE))
                     .rounding(Rounding::same(8.0))
                     .inner_margin(14.0)
                     .show(col0, |ui| {
@@ -233,7 +233,7 @@ impl eframe::App for SenderGuiApp {
                                 for app in &snapshot.detected_apps {
                                     egui::Frame::none()
                                         .fill(BG_CONTROL)
-                                        .stroke(Stroke::new(1.0, BORDER_SUBTLE))
+                                        .stroke(Stroke::new(1.0_f32, BORDER_SUBTLE))
                                         .rounding(Rounding::same(6.0))
                                         .inner_margin(8.0)
                                         .show(ui, |ui| {
@@ -304,7 +304,7 @@ impl eframe::App for SenderGuiApp {
                 let col1 = &mut cols[1];
                 egui::Frame::none()
                     .fill(BG_PANEL)
-                    .stroke(Stroke::new(1.0, BORDER_SUBTLE))
+                    .stroke(Stroke::new(1.0_f32, BORDER_SUBTLE))
                     .rounding(Rounding::same(8.0))
                     .inner_margin(14.0)
                     .show(col1, |ui| {
@@ -383,7 +383,7 @@ impl eframe::App for SenderGuiApp {
                 .frame(
                     egui::Frame::none()
                         .fill(BG_PANEL)
-                        .stroke(Stroke::new(1.5, ACCENT_WARN))
+                        .stroke(Stroke::new(1.5_f32, ACCENT_WARN))
                         .rounding(Rounding::same(10.0))
                         .inner_margin(18.0),
                 )

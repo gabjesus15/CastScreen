@@ -5,13 +5,10 @@
 
 use anyhow::Result;
 use castscreen_capture::{AudioAppSession, AudioSessionController, DxgiScreenCapture, WasapiLoopbackCapture};
-use castscreen_core::{
-    AudioConfig, AudioSubmixer, CastScreenConfig, MediaPacket, NetworkConfig, QpcClock,
-    VideoConfig, VuMeterLevel,
-};
+use castscreen_core::{AudioSubmixer, CastScreenConfig, MediaPacket, QpcClock, VuMeterLevel};
 use castscreen_encoder::{AacEncoder, NvencEncoder};
-use castscreen_network::{MpegTsMuxer, NetworkStats, SrtSender};
-use crossbeam_channel::{bounded, Receiver, Sender};
+use castscreen_network::{MpegTsMuxer, SrtSender};
+use crossbeam_channel::bounded;
 use parking_lot::RwLock;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
