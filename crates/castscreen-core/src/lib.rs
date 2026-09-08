@@ -4,11 +4,17 @@
 pub mod audio_math;
 pub mod clock;
 pub mod config;
+pub mod single_instance;
+pub mod theme;
+pub mod tray;
 pub mod updater;
 
 pub use audio_math::{AudioSubmixer, VuMeterLevel};
 pub use clock::QpcClock;
 pub use config::{AudioConfig, CastScreenConfig, MixerConfig, NetworkConfig, StreamProfile, VideoConfig};
+pub use single_instance::SingleInstanceGuard;
+pub use theme::*;
+pub use tray::TrayNotifier;
 pub use updater::{AutoUpdater, UpdateStatus};
 
 /// Type of media packet flowing through the pipeline.

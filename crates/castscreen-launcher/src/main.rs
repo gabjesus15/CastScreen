@@ -1,19 +1,21 @@
-//! CastScreen Unified Launcher & Update Manager.
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+
+//! CastScreen Unified Launcher & Hardware Mode Selector (Dark Studio GUI).
 //!
-//! Provides a single executable for both PCs:
-//! - Auto-checks GitHub Releases for updates.
-//! - Allows switching between Sender (PC Gaming) and Receiver (Laptop Preview).
-//! - Supports CLI flags `--sender`, `--receiver`, `--check-update`.
+//! Provides a modern desktop interface to choose between:
+//! - 🎮 Modo Emisor (PC Gaming: DirectX 11 + NVENC + Per-App Audio Mixer)
+//! - 💻 Modo Receptor (Streaming Laptop: 60 FPS Live Preview + Master Audio Monitor)
 
 use anyhow::Result;
-use castscreen_core::AutoUpdater;
+use castscreen_core::{
+    configure_dark_studio_theme, SingleInstanceGuard, ACCENT_BRAND, ACCENT_LIVE, BG_PANEL,
+    BORDER_SUBTLE, TEXT_MUTED, TEXT_PRIMARY, TEXT_SECONDARY,
+};
+use eframe::egui::{self, Color32, RichText, Rounding, Stroke, Vec2};
 use std::env;
-use std::io::{self, Write};
 use std::process::Command;
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
-const GITHUB_OWNER: &str = "gabjesus15";
-const GITHUB_REPO: &str = "CastScreen";
 
 fn main() -> Result<()> {
     tracing_subscriber::fmt()
@@ -23,97 +25,262 @@ fn main() -> Result<()> {
 
     let args: Vec<String> = env::args().collect();
 
-    // Direct mode execution via CLI argument
+    // Direct mode execution via CLI arguments
     if args.iter().any(|a| a == "--sender" || a == "-s") {
         return launch_sender();
     }
     if args.iter().any(|a| a == "--receiver" || a == "-r") {
         return launch_receiver();
     }
-    if args.iter().any(|a| a == "--check-update" || a == "-u") {
-        return check_updates_cli();
+
+    // Single Instance Guard: Prevent launching multiple launcher windows
+    let _guard = SingleInstanceGuard::new("CastScreen_Launcher_Mutex", "CastScreen Launcher", true);
+    if !_guard.is_primary() {
+        return Ok(());
     }
 
-    // Interactive Launcher Menu
-    render_launcher_banner();
-    check_updates_silent();
+    let native_options = eframe::NativeOptions {
+        viewport: egui::ViewportBuilder::default()
+            .with_inner_size([660.0, 460.0])
+            .with_min_inner_size([640.0, 440.0])
+            .with_resizable(false)
+            .with_title("CastScreen Launcher"),
+        ..Default::default()
+    };
 
-    println!("\nSelecciona el modo que deseas ejecutar en esta computadora:\n");
-    println!("  [1] 🎮 MODO EMISOR (PC Gaming) - Captura DirectX 11 + NVENC + Mezclador");
-    println!("  [2] 💻 MODO RECEPTOR (Laptop Stream) - Live Preview a 60 FPS + Audio");
-    println!("  [3] 🔄 Comprobar Actualizaciones");
-    println!("  [4] ❌ Salir");
-    print!("\nElige una opción (1-4): ");
-    io::stdout().flush().unwrap();
+    eframe::run_native(
+        "CastScreen Launcher",
+        native_options,
+        Box::new(|_cc| Ok(Box::new(LauncherApp::new()))),
+    )
+    .map_err(|e| anyhow::anyhow!("Eframe error: {}", e))
+}
 
-    let mut choice = String::new();
-    if io::stdin().read_line(&mut choice).is_ok() {
-        match choice.trim() {
-            "1" => launch_sender()?,
-            "2" => launch_receiver()?,
-            "3" => check_updates_cli()?,
-            _ => println!("Saliendo de CastScreen."),
+struct LauncherApp {
+    local_ip: String,
+    status_msg: String,
+}
+
+impl LauncherApp {
+    fn new() -> Self {
+        let local_ip = Self::detect_local_ip();
+        Self {
+            local_ip,
+            status_msg: "Sistema listo para transmitir.".to_string(),
         }
     }
 
-    Ok(())
+    fn detect_local_ip() -> String {
+        // Simple heuristic to discover active LAN IP
+        if let Ok(socket) = std::net::UdpSocket::bind("0.0.0.0:0") {
+            if socket.connect("8.8.8.8:80").is_ok() {
+                if let Ok(local_addr) = socket.local_addr() {
+                    return local_addr.ip().to_string();
+                }
+            }
+        }
+        "192.168.1.x".to_string()
+    }
 }
 
-fn render_launcher_banner() {
-    println!("┌──────────────────────────────────────────────────────────────────┐");
-    println!("│  📡 CastScreen - Lanzador Unificado v{:<28}│", VERSION);
-    println!("│  Solución de Streaming LAN de Doble PC de Alta Fidelidad          │");
-    println!("└──────────────────────────────────────────────────────────────────┘");
-}
+impl eframe::App for LauncherApp {
+    fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        configure_dark_studio_theme(ctx);
 
-fn check_updates_silent() {
-    let _updater = AutoUpdater::new(VERSION, GITHUB_OWNER, GITHUB_REPO);
-    print!("🔍 Comprobando actualizaciones... ");
-    io::stdout().flush().unwrap();
+        egui::CentralPanel::default().show(ctx, |ui| {
+            ui.add_space(8.0);
 
-    // Note: In runtime with full reqwest/curl, this fetches https://api.github.com
-    println!("v{} es la versión actual.", VERSION);
-}
+            // Top Header: Logo + Version + LAN Status Chip
+            ui.horizontal(|ui| {
+                ui.label(
+                    RichText::new("📡 CastScreen")
+                        .strong()
+                        .color(ACCENT_BRAND)
+                        .size(20.0),
+                );
+                ui.label(
+                    RichText::new(format!("v{}", VERSION))
+                        .color(TEXT_MUTED)
+                        .size(13.0),
+                );
 
-fn check_updates_cli() -> Result<()> {
-    render_launcher_banner();
-    let _updater = AutoUpdater::new(VERSION, GITHUB_OWNER, GITHUB_REPO);
-    println!("Versión actual instalada: v{}", VERSION);
-    println!("Repositorio: https://github.com/{}/{}", GITHUB_OWNER, GITHUB_REPO);
-    println!("\n✅ CastScreen está al día con la última versión oficial de GitHub.");
-    Ok(())
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    ui.painter().circle_filled(
+                        ui.cursor().min + Vec2::new(-8.0, 9.0),
+                        4.0,
+                        ACCENT_LIVE,
+                    );
+                    ui.label(
+                        RichText::new(format!("IP: {}", self.local_ip))
+                            .monospace()
+                            .color(TEXT_SECONDARY)
+                            .size(12.0),
+                    );
+                });
+            });
+
+            ui.add_space(6.0);
+            ui.separator();
+            ui.add_space(14.0);
+
+            // Subtitle
+            ui.label(
+                RichText::new("Selecciona el rol que cumplirá esta computadora:")
+                    .color(TEXT_PRIMARY)
+                    .size(14.0),
+            );
+
+            ui.add_space(14.0);
+
+            // Main Selection Cards (Side-by-Side)
+            ui.columns(2, |columns| {
+                // Card 1: PC Gaming (Sender)
+                let col0 = &mut columns[0];
+                let card_stroke = Stroke::new(1.0, BORDER_SUBTLE);
+
+                egui::Frame::none()
+                    .fill(BG_PANEL)
+                    .stroke(card_stroke)
+                    .rounding(Rounding::same(10.0))
+                    .inner_margin(16.0)
+                    .show(col0, |ui| {
+                        ui.label(
+                            RichText::new("🎮 MODO EMISOR")
+                                .strong()
+                                .color(ACCENT_LIVE)
+                                .size(15.0),
+                        );
+                        ui.label(
+                            RichText::new("Para tu PC Gaming principal")
+                                .color(TEXT_SECONDARY)
+                                .size(12.0),
+                        );
+
+                        ui.add_space(12.0);
+                        ui.label(RichText::new("• Captura DirectX 11 VRAM (Zero-Copy)").size(11.0).color(TEXT_PRIMARY));
+                        ui.label(RichText::new("• Codificación por Hardware NVENC").size(11.0).color(TEXT_PRIMARY));
+                        ui.label(RichText::new("• Mezclador de audio por aplicación").size(11.0).color(TEXT_PRIMARY));
+                        ui.label(RichText::new("• Búfer Wi-Fi 6 de 1.000 ms (SRT)").size(11.0).color(TEXT_PRIMARY));
+
+                        ui.add_space(18.0);
+                        let btn = ui.add_sized(
+                            [ui.available_width(), 36.0],
+                            egui::Button::new(
+                                RichText::new("▶ Iniciar como Emisor")
+                                    .strong()
+                                    .color(Color32::WHITE),
+                            )
+                            .fill(ACCENT_BRAND)
+                            .rounding(Rounding::same(6.0)),
+                        );
+
+                        if btn.clicked() {
+                            if let Err(e) = launch_sender() {
+                                self.status_msg = format!("Error al iniciar emisor: {}", e);
+                            } else {
+                                ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+                            }
+                        }
+                    });
+
+                // Card 2: Laptop Streamer (Receiver)
+                let col1 = &mut columns[1];
+                egui::Frame::none()
+                    .fill(BG_PANEL)
+                    .stroke(card_stroke)
+                    .rounding(Rounding::same(10.0))
+                    .inner_margin(16.0)
+                    .show(col1, |ui| {
+                        ui.label(
+                            RichText::new("💻 MODO RECEPTOR")
+                                .strong()
+                                .color(ACCENT_BRAND)
+                                .size(15.0),
+                        );
+                        ui.label(
+                            RichText::new("Para tu Laptop de Streaming")
+                                .color(TEXT_SECONDARY)
+                                .size(12.0),
+                        );
+
+                        ui.add_space(12.0);
+                        ui.label(RichText::new("• Previsualización fluida a 60 FPS").size(11.0).color(TEXT_PRIMARY));
+                        ui.label(RichText::new("• Monitoreo de sonido maestro en audífonos").size(11.0).color(TEXT_PRIMARY));
+                        ui.label(RichText::new("• Modo captura limpia para OBS y TikTok").size(11.0).color(TEXT_PRIMARY));
+                        ui.label(RichText::new("• Telemetría de paquetes y sincronización").size(11.0).color(TEXT_PRIMARY));
+
+                        ui.add_space(18.0);
+                        let btn = ui.add_sized(
+                            [ui.available_width(), 36.0],
+                            egui::Button::new(
+                                RichText::new("👁️ Iniciar como Receptor")
+                                    .strong()
+                                    .color(Color32::WHITE),
+                            )
+                            .fill(ACCENT_LIVE)
+                            .rounding(Rounding::same(6.0)),
+                        );
+
+                        if btn.clicked() {
+                            if let Err(e) = launch_receiver() {
+                                self.status_msg = format!("Error al iniciar receptor: {}", e);
+                            } else {
+                                ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+                            }
+                        }
+                    });
+            });
+
+            ui.add_space(16.0);
+            ui.separator();
+            ui.add_space(8.0);
+
+            // Bottom System Status Bar
+            ui.horizontal(|ui| {
+                ui.label(
+                    RichText::new(format!("Estado: {}", self.status_msg))
+                        .color(TEXT_MUTED)
+                        .size(11.0),
+                );
+
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    ui.label(
+                        RichText::new("✓ Direct3D 11  ✓ WASAPI Loopback  ✓ SRT MPEG-TS")
+                            .color(TEXT_MUTED)
+                            .size(11.0),
+                    );
+                });
+            });
+        });
+    }
 }
 
 fn launch_sender() -> Result<()> {
-    println!("\n🚀 Iniciando CastScreen Sender (Modo Emisor PC Gaming)...");
     let current_exe = env::current_exe()?;
     let exe_dir = current_exe.parent().unwrap_or_else(|| std::path::Path::new("."));
     let sender_path = exe_dir.join("castscreen-sender.exe");
 
     if sender_path.exists() {
-        let _ = Command::new(&sender_path).status()?;
+        Command::new(&sender_path).spawn()?;
     } else {
-        // Fallback for development (cargo run)
-        let _ = Command::new("cargo")
+        Command::new("cargo")
             .args(["run", "-p", "castscreen-sender", "--release"])
-            .status()?;
+            .spawn()?;
     }
     Ok(())
 }
 
 fn launch_receiver() -> Result<()> {
-    println!("\n📺 Iniciando CastScreen Receiver (Modo Receptor Laptop)...");
     let current_exe = env::current_exe()?;
     let exe_dir = current_exe.parent().unwrap_or_else(|| std::path::Path::new("."));
     let receiver_path = exe_dir.join("castscreen-receiver.exe");
 
     if receiver_path.exists() {
-        let _ = Command::new(&receiver_path).status()?;
+        Command::new(&receiver_path).spawn()?;
     } else {
-        // Fallback for development (cargo run)
-        let _ = Command::new("cargo")
+        Command::new("cargo")
             .args(["run", "-p", "castscreen-receiver", "--release"])
-            .status()?;
+            .spawn()?;
     }
     Ok(())
 }

@@ -3,6 +3,7 @@
 //! Renders the incoming 60 FPS video feed utilizing the laptop's Radeon iGPU
 //! with zero tearing and fluid frame presentation.
 
+#[allow(dead_code)]
 pub struct PreviewWindow {
     pub width: u32,
     pub height: u32,

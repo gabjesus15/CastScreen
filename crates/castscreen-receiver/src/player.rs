@@ -11,6 +11,7 @@ pub enum PlayerError {
     Com(#[from] windows::core::Error),
 }
 
+#[allow(dead_code)]
 pub struct AudioPlayer {
     #[allow(dead_code)]
     sample_rate: u32,

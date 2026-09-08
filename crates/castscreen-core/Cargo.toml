@@ -14,6 +14,8 @@ serde_json = { workspace = true }
 toml = { workspace = true }
 thiserror = { workspace = true }
 tracing = { workspace = true }
+eframe = { workspace = true }
+egui_extras = { workspace = true }
 
 [dev-dependencies]
 approx = "0.5"

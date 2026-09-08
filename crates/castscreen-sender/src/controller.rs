@@ -34,6 +34,7 @@ pub struct StreamController {
     is_running: Arc<AtomicBool>,
     state_snapshot: Arc<RwLock<SenderStateSnapshot>>,
     threads: Vec<JoinHandle<()>>,
+    wasapi_capture: Option<WasapiLoopbackCapture>,
 }
 
 impl StreamController {
@@ -43,6 +44,7 @@ impl StreamController {
             is_running: Arc::new(AtomicBool::new(false)),
             state_snapshot: Arc::new(RwLock::new(SenderStateSnapshot::default())),
             threads: Vec::new(),
+            wasapi_capture: None,
         }
     }
 
@@ -63,6 +65,7 @@ impl StreamController {
 
         // Start WASAPI Loopback Capture
         let wasapi = WasapiLoopbackCapture::start(audio_pcm_tx, self.config.audio.sample_rate)?;
+        self.wasapi_capture = Some(wasapi);
 
         // Thread: Audio Processing & Encoding (Mixer -> AAC)
         let is_running_audio = self.is_running.clone();
@@ -179,6 +182,9 @@ impl StreamController {
         }
 
         self.is_running.store(false, Ordering::SeqCst);
+        if let Some(mut wasapi) = self.wasapi_capture.take() {
+            wasapi.stop();
+        }
         for handle in self.threads.drain(..) {
             let _ = handle.join();
         }
