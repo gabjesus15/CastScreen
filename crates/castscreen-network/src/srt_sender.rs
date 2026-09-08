@@ -34,6 +34,7 @@ pub struct NetworkStats {
 }
 
 pub struct SrtSender {
+    #[allow(dead_code)]
     config: NetworkConfig,
     socket: UdpSocket,
     target_addr: Option<String>,
@@ -43,6 +44,7 @@ pub struct SrtSender {
     total_packets_sent: Arc<AtomicU64>,
     last_stats_tick: Instant,
     cached_stats: Arc<RwLock<NetworkStats>>,
+    #[allow(dead_code)]
     is_running: Arc<AtomicBool>,
 }
 

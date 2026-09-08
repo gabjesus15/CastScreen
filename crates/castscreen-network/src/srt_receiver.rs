@@ -35,6 +35,7 @@ pub struct SrtReceiver {
     total_packets: Arc<AtomicU64>,
     last_stats_tick: Instant,
     cached_stats: Arc<RwLock<ReceiverStats>>,
+    #[allow(dead_code)]
     is_running: Arc<AtomicBool>,
 }
 

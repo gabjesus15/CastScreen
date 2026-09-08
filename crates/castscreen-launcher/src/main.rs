@@ -6,7 +6,7 @@
 //! - Supports CLI flags `--sender`, `--receiver`, `--check-update`.
 
 use anyhow::Result;
-use castscreen_core::{AutoUpdater, UpdateStatus};
+use castscreen_core::AutoUpdater;
 use std::env;
 use std::io::{self, Write};
 use std::process::Command;
@@ -67,7 +67,7 @@ fn render_launcher_banner() {
 }
 
 fn check_updates_silent() {
-    let updater = AutoUpdater::new(VERSION, GITHUB_OWNER, GITHUB_REPO);
+    let _updater = AutoUpdater::new(VERSION, GITHUB_OWNER, GITHUB_REPO);
     print!("🔍 Comprobando actualizaciones... ");
     io::stdout().flush().unwrap();
 
@@ -77,7 +77,7 @@ fn check_updates_silent() {
 
 fn check_updates_cli() -> Result<()> {
     render_launcher_banner();
-    let updater = AutoUpdater::new(VERSION, GITHUB_OWNER, GITHUB_REPO);
+    let _updater = AutoUpdater::new(VERSION, GITHUB_OWNER, GITHUB_REPO);
     println!("Versión actual instalada: v{}", VERSION);
     println!("Repositorio: https://github.com/{}/{}", GITHUB_OWNER, GITHUB_REPO);
     println!("\n✅ CastScreen está al día con la última versión oficial de GitHub.");

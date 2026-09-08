@@ -8,6 +8,7 @@ use windows::core::Interface;
 use windows::Win32::Graphics::Direct3D::*;
 use windows::Win32::Graphics::Direct3D11::*;
 use windows::Win32::Graphics::Dxgi::*;
+use windows::Win32::Graphics::Dxgi::Common::*;
 
 #[derive(Error, Debug)]
 pub enum DxgiCaptureError {

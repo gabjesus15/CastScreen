@@ -4,12 +4,12 @@
 //! and provides real-time per-application volume controls, mute toggles, and audio meters.
 
 use thiserror::Error;
-use windows::core::{Interface, GUID};
-use windows::Win32::Foundation::{CloseHandle, HANDLE};
-use windows::Win32::Media::Audio::Endpoints::IAudioEndpointVolume;
+use windows::core::Interface;
+use windows::Win32::Foundation::CloseHandle;
+use windows::Win32::Media::Audio::Endpoints::IAudioMeterInformation;
 use windows::Win32::Media::Audio::*;
 use windows::Win32::System::Com::{
-    CoCreateInstance, CoInitializeEx, CoUninitialize, CLSCTX_ALL, COINIT_MULTITHREADED,
+    CoCreateInstance, CoInitializeEx, CLSCTX_ALL, COINIT_MULTITHREADED,
 };
 use windows::Win32::System::Diagnostics::ToolHelp::{
     CreateToolhelp32Snapshot, Process32FirstW, Process32NextW, PROCESSENTRY32W, TH32CS_SNAPPROCESS,
@@ -87,16 +87,20 @@ impl AudioSessionController {
                         let mut volume = 1.0f32;
                         let mut is_muted = false;
                         if let Ok(simple_vol) = control.cast::<ISimpleAudioVolume>() {
-                            let _ = simple_vol.GetMasterVolume(&mut volume);
-                            let mut muted_bool = windows::Win32::Foundation::BOOL(0);
-                            let _ = simple_vol.GetMute(&mut muted_bool);
-                            is_muted = muted_bool.as_bool();
+                            if let Ok(vol) = simple_vol.GetMasterVolume() {
+                                volume = vol;
+                            }
+                            if let Ok(muted_bool) = simple_vol.GetMute() {
+                                is_muted = muted_bool.as_bool();
+                            }
                         }
 
                         // Read peak audio meter
                         let mut peak = 0.0f32;
                         if let Ok(meter) = control.cast::<IAudioMeterInformation>() {
-                            let _ = meter.GetPeakValue(&mut peak);
+                            if let Ok(p) = meter.GetPeakValue() {
+                                peak = p;
+                            }
                         }
 
                         sessions.push(AudioAppSession {

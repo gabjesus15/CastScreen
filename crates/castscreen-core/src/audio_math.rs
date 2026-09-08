@@ -28,6 +28,14 @@ impl AudioSubmixer {
         }
     }
 
+    pub fn sample_rate(&self) -> u32 {
+        self.sample_rate
+    }
+
+    pub fn channels(&self) -> u16 {
+        self.channels
+    }
+
     /// Mixes multiple input stereo PCM streams into a single master output buffer.
     ///
     /// Each input is scaled by its individual linear gain.

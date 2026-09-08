@@ -51,7 +51,7 @@ impl WasapiLoopbackCapture {
                     CoUninitialize();
                 }
             })
-            .map_err(|e| WasapiCaptureError::FormatUnsupported)?;
+            .map_err(|_| WasapiCaptureError::FormatUnsupported)?;
 
         Ok(Self {
             running,
@@ -98,8 +98,8 @@ impl WasapiLoopbackCapture {
         let channels = format_ref.nChannels as usize;
 
         while running.load(Ordering::Relaxed) {
-            let mut packet_length = 0u32;
-            if capture_client.GetNextPacketSize(&mut packet_length).is_ok() && packet_length > 0 {
+            let packet_length = capture_client.GetNextPacketSize().unwrap_or(0);
+            if packet_length > 0 {
                 let mut data_ptr = std::ptr::null_mut();
                 let mut num_frames_read = 0u32;
                 let mut flags = 0u32;
