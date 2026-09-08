@@ -1,0 +1,13 @@
+[package]
+name = "castscreen-encoder"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[dependencies]
+castscreen-core = { workspace = true }
+windows.workspace = true
+crossbeam-channel.workspace = true
+thiserror.workspace = true
+tracing.workspace = true

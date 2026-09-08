@@ -1,0 +1,18 @@
+[package]
+name = "castscreen-receiver"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[dependencies]
+castscreen-core = { workspace = true }
+castscreen-network = { workspace = true }
+windows.workspace = true
+crossbeam-channel.workspace = true
+parking_lot.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+anyhow.workspace = true
+serde.workspace = true
+serde_json.workspace = true

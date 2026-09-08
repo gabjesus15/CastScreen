@@ -1,0 +1,14 @@
+[package]
+name = "castscreen-capture"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[dependencies]
+castscreen-core = { workspace = true }
+windows.workspace = true
+crossbeam-channel.workspace = true
+parking_lot.workspace = true
+thiserror.workspace = true
+tracing.workspace = true

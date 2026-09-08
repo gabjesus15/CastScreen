@@ -1,0 +1,28 @@
+# Rust target directory
+/target/
+**/*.rs.bk
+Cargo.lock
+
+# IDE & Editors
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Windows build artifacts
+*.pdb
+*.obj
+*.lib
+*.exp
+*.exe
+*.dll
+
+# Logs & Temporary files
+*.log
+/logs/
+/tmp/
+
+# CastScreen local configs
+*.local.toml
