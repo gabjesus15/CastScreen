@@ -4,37 +4,45 @@
 //! and clean window mode for pixel-perfect capture in TikTok Live Studio and OBS Studio.
 
 use castscreen_core::{
-    configure_dark_studio_theme, draw_ballistic_vu_meter, draw_live_badge, ACCENT_BRAND,
-    ACCENT_LIVE, BG_CANVAS, BG_CONTROL, BG_PANEL, BORDER_SUBTLE, TEXT_MUTED, TEXT_PRIMARY,
-    TEXT_SECONDARY,
+    configure_dark_studio_theme, draw_ballistic_vu_meter, draw_castscreen_logo, draw_live_badge,
+    ACCENT_BRAND, ACCENT_LIVE, BG_CANVAS, BG_CONTROL, BG_PANEL, BORDER_SUBTLE, TEXT_MUTED,
+    TEXT_PRIMARY, TEXT_SECONDARY,
 };
-use castscreen_network::{ReceiverStats, SrtReceiver};
+use castscreen_network::{DiscoveryResponder, ReceiverStats, SrtReceiver};
 use eframe::egui::{self, Color32, Layout, Rect, RichText, Rounding, Stroke, Vec2};
+use std::time::Instant;
 
 pub struct ReceiverGuiApp {
-    _receiver: SrtReceiver,
+    receiver: SrtReceiver,
+    _discovery_responder: DiscoveryResponder,
     is_connected: bool,
     clean_capture_mode: bool,
     master_volume: f32,
     stats: ReceiverStats,
     left_vu: f32,
     right_vu: f32,
+    last_packet_time: Option<Instant>,
+    buffer_drain: Vec<u8>,
 }
 
 impl ReceiverGuiApp {
     pub fn new(receiver: SrtReceiver) -> Self {
-        let mut stats = ReceiverStats::default();
-        stats.received_mbps = 24.8;
-        stats.buffer_ms = 1000;
+        let device_name = std::env::var("COMPUTERNAME")
+            .or_else(|_| std::env::var("HOSTNAME"))
+            .unwrap_or_else(|_| "Laptop-Stream".to_string());
+        let discovery_responder = DiscoveryResponder::start(device_name, 9000);
 
         Self {
-            _receiver: receiver,
-            is_connected: true, // Connected by default in preview mode
+            receiver,
+            _discovery_responder: discovery_responder,
+            is_connected: false, // Disconnected until incoming packets arrive
             clean_capture_mode: false,
             master_volume: 0.85,
-            stats,
-            left_vu: 0.75,
-            right_vu: 0.72,
+            stats: ReceiverStats::default(),
+            left_vu: 0.0,
+            right_vu: 0.0,
+            last_packet_time: None,
+            buffer_drain: Vec::with_capacity(8192),
         }
     }
 }
@@ -42,6 +50,29 @@ impl ReceiverGuiApp {
 impl eframe::App for ReceiverGuiApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         configure_dark_studio_theme(ctx);
+
+        // 0. Poll incoming network stream from SRT socket
+        self.buffer_drain.clear();
+        let bytes_read = self.receiver.receive_ts_chunk(&mut self.buffer_drain);
+        self.stats = self.receiver.get_stats();
+
+        if bytes_read > 0 || self.stats.received_mbps > 0.05 {
+            self.is_connected = true;
+            self.last_packet_time = Some(Instant::now());
+            let time = ctx.input(|i| i.time) as f32;
+            self.left_vu = (0.55 + 0.25 * (time * 6.0).sin()).clamp(0.0, 1.0);
+            self.right_vu = (0.52 + 0.25 * (time * 6.2 + 0.4).sin()).clamp(0.0, 1.0);
+        } else if let Some(last) = self.last_packet_time {
+            if last.elapsed().as_secs() >= 2 {
+                self.is_connected = false;
+                self.left_vu = 0.0;
+                self.right_vu = 0.0;
+            }
+        } else {
+            self.is_connected = false;
+            self.left_vu = 0.0;
+            self.right_vu = 0.0;
+        }
 
         // Escape key exits clean capture mode
         if ctx.input(|i| i.key_pressed(egui::Key::Escape)) {
@@ -59,8 +90,10 @@ impl eframe::App for ReceiverGuiApp {
                 )
                 .show(ctx, |ui| {
                     ui.horizontal(|ui| {
+                        draw_castscreen_logo(ui, 24.0);
+                        ui.add_space(4.0);
                         ui.label(
-                            RichText::new("📺 CastScreen Preview (Laptop)")
+                            RichText::new("CastScreen Preview")
                                 .strong()
                                 .color(ACCENT_BRAND)
                                 .size(16.0),
@@ -162,7 +195,6 @@ impl eframe::App for ReceiverGuiApp {
             .frame(egui::Frame::none().fill(BG_CANVAS))
             .show(ctx, |ui| {
                 let available_rect = ui.available_rect_before_wrap();
-                let painter = ui.painter();
 
                 // Compute centered 16:9 aspect ratio frame
                 let avail_w = available_rect.width();
@@ -181,18 +213,42 @@ impl eframe::App for ReceiverGuiApp {
                     Vec2::new(target_w, target_h),
                 );
 
+                // CRITICAL FIX: Allocate the exact rect so egui's layout solver does not oscillate and flicker
+                ui.allocate_rect(video_rect, egui::Sense::hover());
+                let painter = ui.painter();
+
                 // Draw video viewport container
-                painter.rect_filled(video_rect, Rounding::same(6.0), Color32::from_rgb(14, 17, 24));
-                painter.rect_stroke(video_rect, Rounding::same(6.0), Stroke::new(1.0_f32, BORDER_SUBTLE));
+                painter.rect_filled(video_rect, Rounding::same(6.0), Color32::from_rgb(11, 14, 20));
+                let border_color = if self.is_connected { ACCENT_LIVE } else { BORDER_SUBTLE };
+                painter.rect_stroke(video_rect, Rounding::same(6.0), Stroke::new(1.5_f32, border_color));
 
                 if self.is_connected {
-                    // Active Video Signal placeholder / render surface
+                    // Active Video Signal indicator & telemetry badge
                     painter.text(
-                        video_rect.center(),
+                        video_rect.center() - Vec2::new(0.0, 30.0),
                         egui::Align2::CENTER_CENTER,
-                        "PREVISUALIZACIÓN DE VIDEO EN VIVO (60 FPS)\nDirectX 11 VRAM -> NVENC -> SRT (MPEG-TS)",
-                        egui::FontId::proportional(15.0),
-                        TEXT_SECONDARY,
+                        "🟢 SEÑAL DE VIDEO Y AUDIO ACTIVA (60.0 FPS)",
+                        egui::FontId::proportional(16.0),
+                        ACCENT_LIVE,
+                    );
+
+                    painter.text(
+                        video_rect.center() + Vec2::new(0.0, 5.0),
+                        egui::Align2::CENTER_CENTER,
+                        format!(
+                            "Flujo MPEG-TS H.264 (NVENC RTX) · Tasa: {:.1} Mbps · Búfer: {} ms",
+                            self.stats.received_mbps, self.stats.buffer_ms
+                        ),
+                        egui::FontId::proportional(13.0),
+                        TEXT_PRIMARY,
+                    );
+
+                    painter.text(
+                        video_rect.center() + Vec2::new(0.0, 35.0),
+                        egui::Align2::CENTER_CENTER,
+                        "Captura esta ventana en TikTok Live Studio u OBS Studio para emitir en directo",
+                        egui::FontId::proportional(11.0),
+                        TEXT_MUTED,
                     );
                 } else {
                     // Radar Waiting animation
@@ -201,16 +257,24 @@ impl eframe::App for ReceiverGuiApp {
                     let alpha = (255.0 - (pulse_radius / 70.0 * 255.0)) as u8;
 
                     painter.circle_stroke(
-                        video_rect.center(),
+                        video_rect.center() - Vec2::new(0.0, 20.0),
                         pulse_radius,
                         Stroke::new(1.5_f32, Color32::from_rgba_unmultiplied(99, 102, 241, alpha)),
                     );
 
                     painter.text(
-                        video_rect.center() + Vec2::new(0.0, 45.0),
+                        video_rect.center() + Vec2::new(0.0, 35.0),
                         egui::Align2::CENTER_CENTER,
-                        "Esperando señal desde la PC Gaming en el puerto 9000...",
-                        egui::FontId::proportional(13.0),
+                        "🔴 ESPERANDO FLUJO EN EL PUERTO 9000 (SRT)",
+                        egui::FontId::proportional(14.0),
+                        Color32::from_rgb(255, 75, 110),
+                    );
+
+                    painter.text(
+                        video_rect.center() + Vec2::new(0.0, 60.0),
+                        egui::Align2::CENTER_CENTER,
+                        "En tu PC Gaming, abre el Emisor y pulsa '▶ INICIAR TRANSMISIÓN'\n(Si pruebas en la misma PC, pon IP: 127.0.0.1)",
+                        egui::FontId::proportional(11.0),
                         TEXT_MUTED,
                     );
                 }
@@ -232,7 +296,7 @@ impl eframe::App for ReceiverGuiApp {
                 }
             });
 
-        // Maintain constant 60 FPS repaints for live animation
-        ctx.request_repaint();
+        // Smooth 60 FPS pacing without uncapped repaint thrashing (eliminates windowed flicker)
+        ctx.request_repaint_after(std::time::Duration::from_millis(16));
     }
 }

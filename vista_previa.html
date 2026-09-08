@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>CastScreen Dark Studio - Vista Previa Interactiva</title>
+  <script src="https://www.gstatic.com/antigravity/web/dev/tailwindcss.min.js"></script>
+  <style>
+    @keyframes pulseLive {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.4; transform: scale(1.2); }
+    }
+    .live-dot {
+      animation: pulseLive 1.8s infinite ease-in-out;
+    }
+    .custom-scroll::-webkit-scrollbar {
+      width: 5px;
+    }
+    .custom-scroll::-webkit-scrollbar-thumb {
+      background: #22283A;
+      border-radius: 4px;
+    }
+  </style>
+</head>
+<body class="bg-[#0B0E14] text-[#F9FAFB] font-sans antialiased p-4 select-none">
+
+  <!-- Header & Tab Navigation -->
+  <div class="max-w-4xl mx-auto">
+    <div class="flex items-center justify-between pb-3 border-b border-[#22283A] mb-4">
+      <div class="flex items-center space-x-3">
+        <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-[#6366F1] to-[#10B981] flex items-center justify-center shadow-lg shadow-indigo-500/20">
+          <span class="text-white text-sm font-bold">📡</span>
+        </div>
+        <div>
+          <div class="flex items-center space-x-2">
+            <h1 class="text-base font-bold tracking-tight text-white">CastScreen Studio</h1>
+            <span class="text-xs px-2 py-0.5 rounded bg-[#1B2030] text-[#9CA3AF] border border-[#22283A]">v0.2.0</span>
+          </div>
+          <p class="text-xs text-[#636B7E]">Simulador en vivo de la interfaz gráfica Rust (eframe / egui)</p>
+        </div>
+      </div>
+
+      <!-- View Switcher -->
+      <div class="flex bg-[#131722] p-1 rounded-lg border border-[#22283A] space-x-1">
+        <button onclick="switchTab('launcher')" id="tab-btn-launcher" class="px-3 py-1 text-xs rounded-md font-medium transition bg-[#6366F1] text-white">
+          🚀 Lanzador
+        </button>
+        <button onclick="switchTab('sender')" id="tab-btn-sender" class="px-3 py-1 text-xs rounded-md font-medium text-[#9CA3AF] hover:text-white transition">
+          🎮 Emisor (PC Gaming)
+        </button>
+        <button onclick="switchTab('receiver')" id="tab-btn-receiver" class="px-3 py-1 text-xs rounded-md font-medium text-[#9CA3AF] hover:text-white transition">
+          💻 Receptor (Laptop)
+        </button>
+      </div>
+    </div>
+
+    <!-- TAB 1: LANZADOR -->
+    <div id="view-launcher" class="space-x-4">
+      <div class="bg-[#131722] border border-[#22283A] rounded-xl p-5 shadow-2xl">
+        <div class="flex justify-between items-center mb-4">
+          <div>
+            <h2 class="text-sm font-semibold text-white">Selecciona el rol de esta computadora:</h2>
+            <p class="text-xs text-[#9CA3AF]">Zero-Copy DirectX 11 + NVIDIA NVENC + Mezclador WASAPI</p>
+          </div>
+          <div class="flex items-center space-x-2 bg-[#1B2030] px-3 py-1.5 rounded-full border border-[#22283A]">
+            <span class="w-2 h-2 rounded-full bg-[#10B981]"></span>
+            <span class="text-xs text-[#9CA3AF] font-mono">IP LAN: 192.168.1.55</span>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-4">
+          <!-- Card Emisor -->
+          <div class="bg-[#1B2030] hover:bg-[#23293D] border border-[#22283A] hover:border-[#6366F1] rounded-xl p-4 transition group flex flex-col justify-between">
+            <div>
+              <div class="flex items-center justify-between mb-2">
+                <span class="text-xs font-bold text-[#10B981] tracking-wider uppercase">🎮 Modo Emisor</span>
+                <span class="text-[10px] bg-[#10B981]/10 text-[#10B981] px-2 py-0.5 rounded">Recomendado PC</span>
+              </div>
+              <h3 class="text-sm font-bold text-white mb-1">Para tu PC Gaming Principal</h3>
+              <p class="text-xs text-[#9CA3AF] mb-3">Captura directa en VRAM por GPU sin perder ni 1 solo FPS.</p>
+              
+              <ul class="text-[11px] text-[#9CA3AF] space-y-1.5 mb-4">
+                <li class="flex items-center"><span class="text-[#10B981] mr-1.5">✓</span> Captura DirectX 11 DDA (VRAM Zero-Copy)</li>
+                <li class="flex items-center"><span class="text-[#10B981] mr-1.5">✓</span> NVENC Hardware H.264 (RTX 3070)</li>
+                <li class="flex items-center"><span class="text-[#10B981] mr-1.5">✓</span> Mezclador por aplicación (IAudioSession2)</li>
+                <li class="flex items-center"><span class="text-[#10B981] mr-1.5">✓</span> Búfer Wi-Fi 6 de 1.000 ms (SRT)</li>
+              </ul>
+            </div>
+            <button onclick="switchTab('sender')" class="w-full py-2 bg-[#6366F1] hover:bg-[#4F46E5] text-white text-xs font-semibold rounded-lg transition shadow-md shadow-indigo-600/20">
+              ▶ Iniciar como Emisor
+            </button>
+          </div>
+
+          <!-- Card Receptor -->
+          <div class="bg-[#1B2030] hover:bg-[#23293D] border border-[#22283A] hover:border-[#10B981] rounded-xl p-4 transition group flex flex-col justify-between">
+            <div>
+              <div class="flex items-center justify-between mb-2">
+                <span class="text-xs font-bold text-[#6366F1] tracking-wider uppercase">💻 Modo Receptor</span>
+                <span class="text-[10px] bg-[#6366F1]/10 text-[#6366F1] px-2 py-0.5 rounded">Laptop / OBS</span>
+              </div>
+              <h3 class="text-sm font-bold text-white mb-1">Para tu Laptop de Streaming</h3>
+              <p class="text-xs text-[#9CA3AF] mb-3">Previsualización a 60 FPS y emisión a TikTok Studio / OBS.</p>
+              
+              <ul class="text-[11px] text-[#9CA3AF] space-y-1.5 mb-4">
+                <li class="flex items-center"><span class="text-[#6366F1] mr-1.5">✓</span> Previsualización fluida a 60 FPS sin jitter</li>
+                <li class="flex items-center"><span class="text-[#6366F1] mr-1.5">✓</span> Monitoreo maestro de sonido en audífonos</li>
+                <li class="flex items-center"><span class="text-[#6366F1] mr-1.5">✓</span> Modo Captura Limpia (1 clic)</li>
+                <li class="flex items-center"><span class="text-[#6366F1] mr-1.5">✓</span> Reensamblado MPEG-TS y corrección PTS</li>
+              </ul>
+            </div>
+            <button onclick="switchTab('receiver')" class="w-full py-2 bg-[#10B981] hover:bg-[#059669] text-white text-xs font-semibold rounded-lg transition shadow-md shadow-emerald-600/20">
+              👁️ Iniciar como Receptor
+            </button>
+          </div>
+        </div>
+
+        <div class="mt-4 pt-3 border-t border-[#22283A] flex justify-between text-[11px] text-[#636B7E]">
+          <span>✓ Instancia Única protegida (Win32 Mutex)</span>
+          <span>✓ Direct3D 11 · WASAPI Loopback · SRT MPEG-TS</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 2: EMISOR (PC GAMING) -->
+    <div id="view-sender" class="hidden space-y-3">
+      <!-- Top Control Bar -->
+      <div class="bg-[#131722] border border-[#22283A] rounded-xl p-3 flex items-center justify-between">
+        <div class="flex items-center space-x-3">
+          <div class="flex items-center space-x-2 bg-[#1B2030] px-3 py-1.5 rounded-lg border border-[#22283A]">
+            <span id="sender-live-dot" class="w-2.5 h-2.5 rounded-full bg-[#10B981] live-dot"></span>
+            <span id="sender-live-text" class="text-xs font-bold text-[#10B981]">EN VIVO</span>
+            <span id="sender-timer" class="text-xs font-mono text-[#9CA3AF] pl-1">[ 00:14:32 ]</span>
+          </div>
+          <span class="text-xs text-[#9CA3AF]">Destino Laptop: <span class="font-mono text-white">192.168.1.100:9000</span></span>
+        </div>
+
+        <div class="flex items-center space-x-2">
+          <button onclick="toggleSenderStream()" id="sender-stream-toggle" class="px-4 py-1.5 bg-[#EF4444] hover:bg-[#DC2626] text-white text-xs font-bold rounded-lg transition shadow-sm">
+            ⏹ DETENER TRANSMISIÓN
+          </button>
+          <button onclick="alert('Ventana minimizada a la bandeja del sistema (System Tray junto al reloj). CastScreen sigue transmitiendo con 0 FPS perdidos.')" class="px-3 py-1.5 bg-[#1B2030] hover:bg-[#23293D] text-[#9CA3AF] text-xs font-medium rounded-lg border border-[#22283A] transition">
+            📥 Bandeja
+          </button>
+        </div>
+      </div>
+
+      <!-- Split View: Mixer Left, Telemetry Right -->
+      <div class="grid grid-cols-2 gap-3">
+        <!-- Left: Audio Mixer -->
+        <div class="bg-[#131722] border border-[#22283A] rounded-xl p-4">
+          <div class="flex justify-between items-center mb-3">
+            <h3 class="text-xs font-bold text-white uppercase tracking-wider">🎚️ Mezclador por Aplicación</h3>
+            <span class="text-[10px] text-[#10B981] font-mono">IAudioSessionManager2</span>
+          </div>
+
+          <!-- Master VU -->
+          <div class="bg-[#1B2030] p-3 rounded-lg border border-[#22283A] mb-3">
+            <div class="flex justify-between text-xs mb-1.5">
+              <span class="font-semibold text-white">🔊 Audio Maestro (Juego)</span>
+              <span class="font-mono text-[#10B981]">-3.2 dBFS</span>
+            </div>
+            <div class="space-y-1">
+              <div class="h-2 bg-[#0B0E14] rounded-full overflow-hidden flex">
+                <div class="w-[82%] bg-gradient-to-r from-[#10B981] via-[#F59E0B] to-[#EF4444] rounded-full transition-all duration-100"></div>
+              </div>
+              <div class="h-2 bg-[#0B0E14] rounded-full overflow-hidden flex">
+                <div class="w-[78%] bg-gradient-to-r from-[#10B981] via-[#F59E0B] to-[#EF4444] rounded-full transition-all duration-100"></div>
+              </div>
+            </div>
+          </div>
+
+          <span class="text-[10px] text-[#636B7E] font-semibold uppercase tracking-wider block mb-2">APLICACIONES ACTIVAS:</span>
+          
+          <div class="space-y-2 max-h-56 overflow-y-auto custom-scroll pr-1">
+            <!-- App: Counter-Strike 2 -->
+            <div class="bg-[#1B2030] p-2.5 rounded-lg border border-[#22283A] flex items-center justify-between">
+              <div class="flex-1 mr-3">
+                <div class="flex items-center space-x-2">
+                  <span class="text-xs font-semibold text-white">cs2.exe</span>
+                  <span class="text-[10px] text-[#636B7E]">PID: 14092</span>
+                </div>
+                <div class="h-1.5 bg-[#0B0E14] rounded-full mt-1.5 overflow-hidden">
+                  <div class="w-[75%] bg-[#10B981] h-full rounded-full"></div>
+                </div>
+              </div>
+              <button onclick="toggleMute(this)" class="px-2.5 py-1 bg-[#23293D] hover:bg-[#2A334C] text-[#9CA3AF] text-[10px] font-bold rounded border border-[#22283A]">
+                🔊 MUTE
+              </button>
+            </div>
+
+            <!-- App: Spotify -->
+            <div class="bg-[#1B2030] p-2.5 rounded-lg border border-[#22283A] flex items-center justify-between">
+              <div class="flex-1 mr-3">
+                <div class="flex items-center space-x-2">
+                  <span class="text-xs font-semibold text-white">Spotify.exe</span>
+                  <span class="text-[10px] text-[#636B7E]">PID: 8820</span>
+                </div>
+                <div class="h-1.5 bg-[#0B0E14] rounded-full mt-1.5 overflow-hidden">
+                  <div class="w-[45%] bg-[#10B981] h-full rounded-full"></div>
+                </div>
+              </div>
+              <button onclick="toggleMute(this)" class="px-2.5 py-1 bg-[#23293D] hover:bg-[#2A334C] text-[#9CA3AF] text-[10px] font-bold rounded border border-[#22283A]">
+                🔊 MUTE
+              </button>
+            </div>
+
+            <!-- App: Discord -->
+            <div class="bg-[#1B2030] p-2.5 rounded-lg border border-[#22283A] flex items-center justify-between">
+              <div class="flex-1 mr-3">
+                <div class="flex items-center space-x-2">
+                  <span class="text-xs font-semibold text-white">Discord.exe</span>
+                  <span class="text-[10px] text-[#636B7E]">PID: 6412</span>
+                </div>
+                <div class="h-1.5 bg-[#0B0E14] rounded-full mt-1.5 overflow-hidden">
+                  <div class="w-[0%] bg-[#EF4444] h-full rounded-full"></div>
+                </div>
+              </div>
+              <button onclick="toggleMute(this)" class="px-2.5 py-1 bg-[#EF4444]/20 text-[#EF4444] border border-[#EF4444]/40 text-[10px] font-bold rounded">
+                🔇 MUTED
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right: Telemetry & Wi-Fi Buffer -->
+        <div class="bg-[#131722] border border-[#22283A] rounded-xl p-4 flex flex-col justify-between">
+            <h3 class="text-xs font-bold text-white uppercase tracking-wider mb-2">🖥️ Pantallas Detectadas (Monitores)</h3>
+
+            <!-- Monitor Selector Cards -->
+            <div class="space-y-1.5 mb-3">
+              <div class="bg-[#1B2030] hover:bg-[#22283C] p-2 rounded-lg border border-[#6366F1] flex items-center justify-between cursor-pointer transition">
+                <div class="flex items-center space-x-2">
+                  <input type="radio" name="monitor-select" checked class="accent-[#6366F1]">
+                  <span class="text-xs font-semibold text-white">🖥️ Pantalla 1 (Principal)</span>
+                </div>
+                <span class="text-[11px] font-mono text-[#6366F1]">1920x1080 @ 60Hz</span>
+              </div>
+              <div class="bg-[#161B29] hover:bg-[#22283C] p-2 rounded-lg border border-[#22283A] flex items-center justify-between cursor-pointer transition">
+                <div class="flex items-center space-x-2">
+                  <input type="radio" name="monitor-select" class="accent-[#6366F1]">
+                  <span class="text-xs font-semibold text-[#9CA3AF]">🖥️ Pantalla 2</span>
+                </div>
+                <span class="text-[11px] font-mono text-[#636B7E]">2560x1440 @ 144Hz</span>
+              </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-2 mb-3">
+              <div class="bg-[#1B2030] p-2.5 rounded-lg border border-[#22283A]">
+                <span class="text-[10px] text-[#636B7E] block">FPS DE CAPTURA</span>
+                <span class="text-base font-bold font-mono text-[#10B981]">60.0 FPS</span>
+              </div>
+              <div class="bg-[#1B2030] p-2.5 rounded-lg border border-[#22283A]">
+                <span class="text-[10px] text-[#636B7E] block">TASA DE BITS</span>
+                <span class="text-base font-bold font-mono text-[#6366F1]">24.8 Mbps</span>
+              </div>
+            </div>
+
+            <!-- Buffer Health Bar -->
+            <div class="bg-[#1B2030] p-3 rounded-lg border border-[#22283A] mb-3">
+              <div class="flex justify-between text-xs mb-1">
+                <span class="text-[#9CA3AF]">Búfer Wi-Fi 6 (SRT)</span>
+                <span class="font-mono text-[#10B981]">980 ms / 1.000 ms</span>
+              </div>
+              <div class="h-2 bg-[#0B0E14] rounded-full overflow-hidden">
+                <div class="w-[98%] bg-[#10B981] h-full rounded-full"></div>
+              </div>
+              <span class="text-[10px] text-[#636B7E] mt-1 block">Estabilidad absoluta: ARQ activo contra microcortes de red.</span>
+            </div>
+
+            <div class="text-[11px] text-[#9CA3AF] space-y-1 bg-[#1B2030]/50 p-2.5 rounded-lg border border-[#22283A]">
+              <p>• GPU: <span class="text-white font-medium">NVIDIA RTX 3070 (NVENC P1)</span></p>
+              <p>• Captura: <span class="text-white font-medium">DirectX 11 DDA (VRAM Surface)</span></p>
+              <p>• Sincronía: <span class="text-white font-medium">QPC Clock (90 kHz PTS Común)</span></p>
+            </div>
+          </div>
+
+          <div class="mt-3 pt-2 border-t border-[#22283A] text-right">
+            <span class="text-[10px] text-[#10B981]">● Cero impacto en FPS del juego</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 3: RECEPTOR (LAPTOP) -->
+    <div id="view-receiver" class="hidden space-y-3">
+      <!-- Top Bar -->
+      <div id="rec-top-bar" class="bg-[#131722] border border-[#22283A] rounded-xl p-3 flex items-center justify-between">
+        <div class="flex items-center space-x-3">
+          <span class="text-sm font-bold text-white">📺 Previsualización en Vivo</span>
+          <span class="text-xs px-2 py-0.5 rounded bg-[#10B981]/15 text-[#10B981] border border-[#10B981]/30">60 FPS Fluido</span>
+        </div>
+        <div class="flex items-center space-x-2">
+          <button onclick="toggleCleanCapture()" id="clean-mode-btn" class="px-3 py-1.5 bg-[#6366F1] hover:bg-[#4F46E5] text-white text-xs font-semibold rounded-lg transition shadow-sm">
+            👁️ Modo Captura Limpia (OBS/TikTok)
+          </button>
+        </div>
+      </div>
+
+      <!-- Viewport Canvas (16:9 Centered) -->
+      <div id="video-viewport" class="relative bg-[#0E1118] border border-[#22283A] rounded-xl h-64 flex items-center justify-center overflow-hidden group">
+        <!-- Live simulated signal content -->
+        <div class="text-center">
+          <div class="w-12 h-12 mx-auto mb-2 rounded-full bg-[#1B2030] flex items-center justify-center border border-[#22283A]">
+            <span class="text-xl">🎮</span>
+          </div>
+          <h4 class="text-sm font-bold text-white">SEÑAL DIRECTA DIRECTX 11 (VRAM → NVENC → SRT)</h4>
+          <p class="text-xs text-[#10B981] font-mono mt-1">1920x1080 @ 60.0 FPS · PTS Sincronizado</p>
+          <span class="text-[10px] text-[#636B7E] mt-2 block">Listo para "Captura de Ventana" en OBS Studio y TikTok Live Studio</span>
+        </div>
+
+        <!-- Floating Hint when clean mode active -->
+        <div id="clean-hint" class="hidden absolute top-3 left-3 bg-black/70 backdrop-blur text-white text-[10px] px-3 py-1 rounded-md border border-white/10">
+          Modo Captura Limpia Activo - Haz clic en la pantalla o presiona [ESC] para salir
+        </div>
+      </div>
+
+      <!-- Bottom Audio Bar -->
+      <div id="rec-bottom-bar" class="bg-[#131722] border border-[#22283A] rounded-xl p-3 flex items-center justify-between">
+        <div class="flex items-center space-x-3">
+          <span class="text-xs font-bold text-[#636B7E] uppercase tracking-wider">🔊 AUDIO MASTER:</span>
+          <div class="w-36 space-y-1">
+            <div class="h-1.5 bg-[#0B0E14] rounded-full overflow-hidden">
+              <div class="w-[80%] bg-[#10B981] h-full rounded-full"></div>
+            </div>
+            <div class="h-1.5 bg-[#0B0E14] rounded-full overflow-hidden">
+              <div class="w-[76%] bg-[#10B981] h-full rounded-full"></div>
+            </div>
+          </div>
+          <span class="text-xs font-mono text-[#9CA3AF]">Vol: 85%</span>
+        </div>
+        <div class="text-xs text-[#10B981] font-mono">
+          Sync A/V: &lt; 0.2 ms | Búfer: 1.000 ms
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function switchTab(tabId) {
+      ['launcher', 'sender', 'receiver'].forEach(id => {
+        const view = document.getElementById(`view-${id}`);
+        const btn = document.getElementById(`tab-btn-${id}`);
+        if (id === tabId) {
+          view.classList.remove('hidden');
+          btn.className = 'px-3 py-1 text-xs rounded-md font-medium transition bg-[#6366F1] text-white';
+        } else {
+          view.classList.add('hidden');
+          btn.className = 'px-3 py-1 text-xs rounded-md font-medium text-[#9CA3AF] hover:text-white transition';
+        }
+      });
+    }
+
+    function toggleMute(btn) {
+      if (btn.innerText.includes('MUTE') && !btn.innerText.includes('MUTED')) {
+        btn.innerText = '🔇 MUTED';
+        btn.className = 'px-2.5 py-1 bg-[#EF4444]/20 text-[#EF4444] border border-[#EF4444]/40 text-[10px] font-bold rounded';
+      } else {
+        btn.innerText = '🔊 MUTE';
+        btn.className = 'px-2.5 py-1 bg-[#23293D] hover:bg-[#2A334C] text-[#9CA3AF] text-[10px] font-bold rounded border border-[#22283A]';
+      }
+    }
+
+    function toggleSenderStream() {
+      const btn = document.getElementById('sender-stream-toggle');
+      const dot = document.getElementById('sender-live-dot');
+      const text = document.getElementById('sender-live-text');
+      if (btn.innerText.includes('DETENER')) {
+        if (confirm('⚠️ Transmisión Activa\n\n¿Deseas detener la transmisión hacia la laptop? El stream se cortará de inmediato.')) {
+          btn.innerText = '▶ INICIAR TRANSMISIÓN';
+          btn.className = 'px-4 py-1.5 bg-[#10B981] hover:bg-[#059669] text-white text-xs font-bold rounded-lg transition shadow-sm';
+          dot.className = 'w-2.5 h-2.5 rounded-full bg-[#636B7E]';
+          text.innerText = 'LISTO';
+          text.className = 'text-xs font-bold text-[#636B7E]';
+        }
+      } else {
+        btn.innerText = '⏹ DETENER TRANSMISIÓN';
+        btn.className = 'px-4 py-1.5 bg-[#EF4444] hover:bg-[#DC2626] text-white text-xs font-bold rounded-lg transition shadow-sm';
+        dot.className = 'w-2.5 h-2.5 rounded-full bg-[#10B981] live-dot';
+        text.innerText = 'EN VIVO';
+        text.className = 'text-xs font-bold text-[#10B981]';
+      }
+    }
+
+    let isClean = false;
+    function toggleCleanCapture() {
+      isClean = !isClean;
+      document.getElementById('rec-top-bar').style.display = isClean ? 'none' : 'flex';
+      document.getElementById('rec-bottom-bar').style.display = isClean ? 'none' : 'flex';
+      document.getElementById('clean-hint').style.display = isClean ? 'block' : 'none';
+      document.getElementById('video-viewport').className = isClean 
+        ? 'relative bg-[#0E1118] border border-[#22283A] rounded-xl h-80 flex items-center justify-center overflow-hidden cursor-pointer'
+        : 'relative bg-[#0E1118] border border-[#22283A] rounded-xl h-64 flex items-center justify-center overflow-hidden';
+    }
+
+    document.getElementById('video-viewport').addEventListener('click', () => {
+      if (isClean) toggleCleanCapture();
+    });
+  </script>
+</body>
+</html>

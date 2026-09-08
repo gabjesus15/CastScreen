@@ -20,7 +20,7 @@ fn main() -> Result<()> {
         .init();
 
     // Prevent launching duplicate sender processes
-    let _guard = SingleInstanceGuard::new("CastScreen_Sender_Mutex", "CastScreen Studio (Emisor)", true);
+    let _guard = SingleInstanceGuard::new("CastScreen_Sender_Mutex", "CastScreen Studio (Emisor PC Gaming)", true);
     if !_guard.is_primary() {
         return Ok(());
     }
@@ -30,7 +30,6 @@ fn main() -> Result<()> {
     config.network.srt_latency_ms = 1000; // 1 second Wi-Fi buffer
 
     let controller = StreamController::new(config);
-    controller.refresh_audio_sessions();
 
     let native_options = eframe::NativeOptions {
         viewport: eframe::egui::ViewportBuilder::default()
@@ -41,7 +40,7 @@ fn main() -> Result<()> {
     };
 
     eframe::run_native(
-        "CastScreen Studio",
+        "CastScreen Studio (Emisor PC Gaming)",
         native_options,
         Box::new(|_cc| Ok(Box::new(SenderGuiApp::new(controller)))),
     )

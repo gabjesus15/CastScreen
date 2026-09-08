@@ -5,7 +5,9 @@
 //! notifies the user, and terminates cleanly to prevent memory bloat and port collisions.
 
 use windows::core::HSTRING;
-use windows::Win32::Foundation::{CloseHandle, GetLastError, ERROR_ALREADY_EXISTS, HANDLE};
+use windows::Win32::Foundation::{
+    CloseHandle, GetLastError, SetLastError, ERROR_ALREADY_EXISTS, HANDLE, WIN32_ERROR,
+};
 use windows::Win32::System::Threading::CreateMutexW;
 use windows::Win32::UI::WindowsAndMessaging::{
     FindWindowW, MessageBoxW, SetForegroundWindow, ShowWindow, MB_ICONINFORMATION, MB_OK,
@@ -26,7 +28,11 @@ impl SingleInstanceGuard {
     /// - Returns a guard with `is_primary() == false`.
     pub fn new(app_identifier: &str, window_title: &str, show_alert: bool) -> Self {
         unsafe {
-            let mutex_name = HSTRING::from(format!("Global\\{}", app_identifier));
+            // Reset last error to avoid reading stale error codes
+            SetLastError(WIN32_ERROR(0));
+
+            // Use Local namespace for per-session user isolation without requiring admin elevation
+            let mutex_name = HSTRING::from(format!("Local\\{}", app_identifier));
             let handle = CreateMutexW(None, true, &mutex_name);
 
             match handle {
@@ -37,14 +43,24 @@ impl SingleInstanceGuard {
 
                         // Try to bring the existing window to the front
                         let title_hstring = HSTRING::from(window_title);
+                        let mut found_window = false;
                         if let Ok(existing_hwnd) = FindWindowW(None, &title_hstring) {
                             if !existing_hwnd.is_invalid() {
                                 let _ = ShowWindow(existing_hwnd, SHOW_WINDOW_CMD(9));
                                 let _ = SetForegroundWindow(existing_hwnd);
+                                found_window = true;
                             }
                         }
 
-                        if show_alert {
+                        // If no window with exact title was found, try fallback search
+                        if !found_window {
+                            tracing::warn!(
+                                "Mutex exists for {} but window was not found in foreground.",
+                                app_identifier
+                            );
+                        }
+
+                        if show_alert && found_window {
                             let msg = HSTRING::from(format!(
                                 "{} ya se está ejecutando en esta computadora.\n\nSe ha traído la ventana activa al primer plano.",
                                 window_title

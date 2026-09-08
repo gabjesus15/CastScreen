@@ -9,7 +9,7 @@ use windows::Win32::Foundation::CloseHandle;
 use windows::Win32::Media::Audio::Endpoints::IAudioMeterInformation;
 use windows::Win32::Media::Audio::*;
 use windows::Win32::System::Com::{
-    CoCreateInstance, CoInitializeEx, CLSCTX_ALL, COINIT_MULTITHREADED,
+    CoCreateInstance, CoInitializeEx, CLSCTX_ALL, COINIT_APARTMENTTHREADED,
 };
 use windows::Win32::System::Diagnostics::ToolHelp::{
     CreateToolhelp32Snapshot, Process32FirstW, Process32NextW, PROCESSENTRY32W, TH32CS_SNAPPROCESS,
@@ -44,7 +44,7 @@ impl AudioSessionController {
     pub fn enumerate_active_sessions() -> Result<Vec<AudioAppSession>, AudioSessionError> {
         unsafe {
             // Ensure COM is initialized for this calling thread
-            let _ = CoInitializeEx(None, COINIT_MULTITHREADED);
+            let _ = CoInitializeEx(None, COINIT_APARTMENTTHREADED);
 
             // 1. Obtain MMDeviceEnumerator
             let enumerator: IMMDeviceEnumerator =
@@ -122,7 +122,7 @@ impl AudioSessionController {
     /// Sets mute state for a specific process ID.
     pub fn set_process_mute(target_pid: u32, mute: bool) -> Result<(), AudioSessionError> {
         unsafe {
-            let _ = CoInitializeEx(None, COINIT_MULTITHREADED);
+            let _ = CoInitializeEx(None, COINIT_APARTMENTTHREADED);
             let enumerator: IMMDeviceEnumerator =
                 CoCreateInstance(&MMDeviceEnumerator, None, CLSCTX_ALL)?;
             let device: IMMDevice =
@@ -157,7 +157,7 @@ impl AudioSessionController {
     /// Sets master volume [0.0, 1.0] for a specific process ID.
     pub fn set_process_volume(target_pid: u32, volume: f32) -> Result<(), AudioSessionError> {
         unsafe {
-            let _ = CoInitializeEx(None, COINIT_MULTITHREADED);
+            let _ = CoInitializeEx(None, COINIT_APARTMENTTHREADED);
             let enumerator: IMMDeviceEnumerator =
                 CoCreateInstance(&MMDeviceEnumerator, None, CLSCTX_ALL)?;
             let device: IMMDevice =

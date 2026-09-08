@@ -15,7 +15,7 @@ pub use config::{AudioConfig, CastScreenConfig, MixerConfig, NetworkConfig, Stre
 pub use single_instance::SingleInstanceGuard;
 pub use theme::*;
 pub use tray::TrayNotifier;
-pub use updater::{AutoUpdater, UpdateStatus};
+pub use updater::{AppUpdater, AutoUpdater, UpdateState, UpdateStatus};
 
 /// Type of media packet flowing through the pipeline.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

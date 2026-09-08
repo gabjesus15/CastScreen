@@ -145,7 +145,8 @@ CastScreen/
 │   ├── castscreen-encoder/        # NVIDIA NVENC y audio AAC
 │   ├── castscreen-network/        # Multiplexor MPEG-TS y transporte SRT
 │   ├── castscreen-sender/         # Aplicación emisora con GUI para PC Gaming
-│   └── castscreen-receiver/       # Aplicación receptora con Live Preview para Laptop
+│   ├── castscreen-receiver/       # Aplicación receptora con Live Preview para Laptop
+│   └── castscreen-launcher/       # Lanzador selector universal de modo y auto-updater
 └── docs/
     ├── ARCHITECTURE.md            # Especificación técnica interna
     ├── OBS_SETUP.md               # Guía de configuración para OBS

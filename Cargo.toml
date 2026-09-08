@@ -11,7 +11,7 @@ members = [
 ]
 
 [workspace.package]
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 authors = ["gabjesus15", "CastScreen Contributors"]
 license = "MIT"
@@ -40,6 +40,9 @@ anyhow = "1.0"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 toml = "0.8"
+
+# HTTP Client & Auto-Updater
+ureq = { version = "2.10", features = ["json"] }
 
 # GUI & Desktop Framework
 eframe = "0.28"

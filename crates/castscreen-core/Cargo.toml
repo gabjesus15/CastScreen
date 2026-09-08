@@ -16,6 +16,7 @@ thiserror = { workspace = true }
 tracing = { workspace = true }
 eframe = { workspace = true }
 egui_extras = { workspace = true }
+ureq = { workspace = true }
 
 [dev-dependencies]
 approx = "0.5"

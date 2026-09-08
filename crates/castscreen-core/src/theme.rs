@@ -176,3 +176,74 @@ pub fn draw_buffer_health_bar(ui: &mut egui::Ui, current_ms: u32, max_ms: u32, w
         painter.rect_filled(fill_rect, Rounding::same(2.0), fill_color);
     }
 }
+
+/// Draws the official CastScreen vector logo (Monitor + Wi-Fi Broadcast Waves).
+/// Renders sharp at any DPI scale with brand colors: Cyan, Indigo, and Neon Mint.
+pub fn draw_castscreen_logo(ui: &mut egui::Ui, size: f32) {
+    let (rect, _) = ui.allocate_exact_size(Vec2::splat(size), egui::Sense::hover());
+    let painter = ui.painter();
+
+    let mint_wave = Color32::from_rgb(0, 245, 160); // #00F5A0
+    let cyan_frame = Color32::from_rgb(0, 242, 254); // #00F2FE
+    let indigo_glow = Color32::from_rgb(79, 172, 254); // #4FACFE
+
+    // 1. Dark container background with subtle glow
+    painter.rect_filled(
+        rect,
+        Rounding::same(size * 0.22),
+        Color32::from_rgb(14, 17, 24),
+    );
+    painter.rect_stroke(
+        rect,
+        Rounding::same(size * 0.22),
+        Stroke::new(1.0_f32, Color32::from_rgb(34, 40, 58)),
+    );
+
+    // 2. Monitor Screen Outline
+    let screen_rect = Rect::from_min_max(
+        Pos2::new(rect.min.x + size * 0.16, rect.min.y + size * 0.22),
+        Pos2::new(rect.min.x + size * 0.72, rect.min.y + size * 0.74),
+    );
+    painter.rect_stroke(
+        screen_rect,
+        Rounding::same(size * 0.10),
+        Stroke::new(size * 0.07, cyan_frame),
+    );
+
+    // 3. Monitor Stand
+    let stand_p1 = Pos2::new(rect.min.x + size * 0.44, rect.min.y + size * 0.74);
+    let stand_p2 = Pos2::new(rect.min.x + size * 0.44, rect.min.y + size * 0.85);
+    painter.line_segment([stand_p1, stand_p2], Stroke::new(size * 0.06, indigo_glow));
+
+    let base_p1 = Pos2::new(rect.min.x + size * 0.32, rect.min.y + size * 0.85);
+    let base_p2 = Pos2::new(rect.min.x + size * 0.56, rect.min.y + size * 0.85);
+    painter.line_segment([base_p1, base_p2], Stroke::new(size * 0.06, indigo_glow));
+
+    // 4. Wi-Fi Broadcast Waves (Top-Right)
+    let wave_center = Pos2::new(rect.min.x + size * 0.64, rect.min.y + size * 0.38);
+    let r1 = size * 0.16;
+    let r2 = size * 0.26;
+
+    // Small arc
+    let arc1_pts: Vec<Pos2> = (0..=8)
+        .map(|i| {
+            let angle = -std::f32::consts::FRAC_PI_2 + (i as f32 / 8.0) * std::f32::consts::FRAC_PI_2;
+            Pos2::new(wave_center.x + r1 * angle.cos(), wave_center.y + r1 * angle.sin())
+        })
+        .collect();
+    for window in arc1_pts.windows(2) {
+        painter.line_segment([window[0], window[1]], Stroke::new(size * 0.065, mint_wave));
+    }
+
+    // Large arc
+    let arc2_pts: Vec<Pos2> = (0..=8)
+        .map(|i| {
+            let angle = -std::f32::consts::FRAC_PI_2 + (i as f32 / 8.0) * std::f32::consts::FRAC_PI_2;
+            Pos2::new(wave_center.x + r2 * angle.cos(), wave_center.y + r2 * angle.sin())
+        })
+        .collect();
+    for window in arc2_pts.windows(2) {
+        painter.line_segment([window[0], window[1]], Stroke::new(size * 0.065, mint_wave));
+    }
+}
+

@@ -34,6 +34,7 @@ fn main() -> Result<()> {
     let receiver = SrtReceiver::new(net_config)?;
 
     let native_options = eframe::NativeOptions {
+        vsync: true,
         viewport: eframe::egui::ViewportBuilder::default()
             .with_inner_size([1080.0, 720.0])
             .with_min_inner_size([800.0, 500.0])

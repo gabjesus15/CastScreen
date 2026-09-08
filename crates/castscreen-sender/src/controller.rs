@@ -4,7 +4,10 @@
 //! mixer, NVENC hardware encoding, and SRT transmission across isolated lock-free threads.
 
 use anyhow::Result;
-use castscreen_capture::{AudioAppSession, AudioSessionController, DxgiScreenCapture, WasapiLoopbackCapture};
+use castscreen_capture::{
+    AudioAppSession, AudioSessionController, DxgiScreenCapture, MonitorInfo,
+    WasapiLoopbackCapture,
+};
 use castscreen_core::{AudioSubmixer, CastScreenConfig, MediaPacket, QpcClock, VuMeterLevel};
 use castscreen_encoder::{AacEncoder, NvencEncoder};
 use castscreen_network::{MpegTsMuxer, SrtSender};
@@ -24,6 +27,8 @@ pub struct SenderStateSnapshot {
     pub total_bytes_sent: u64,
     pub master_vu: VuMeterLevel,
     pub detected_apps: Vec<AudioAppSession>,
+    pub detected_monitors: Vec<MonitorInfo>,
+    pub selected_monitor: u32,
 }
 
 pub struct StreamController {
@@ -36,10 +41,16 @@ pub struct StreamController {
 
 impl StreamController {
     pub fn new(config: CastScreenConfig) -> Self {
+        let monitors = DxgiScreenCapture::enumerate_monitors().unwrap_or_default();
+        let selected = config.video.display_index;
+        let mut initial_snapshot = SenderStateSnapshot::default();
+        initial_snapshot.detected_monitors = monitors;
+        initial_snapshot.selected_monitor = selected;
+
         Self {
             config,
             is_running: Arc::new(AtomicBool::new(false)),
-            state_snapshot: Arc::new(RwLock::new(SenderStateSnapshot::default())),
+            state_snapshot: Arc::new(RwLock::new(initial_snapshot)),
             threads: Vec::new(),
             wasapi_capture: None,
         }
@@ -197,6 +208,19 @@ impl StreamController {
     pub fn refresh_audio_sessions(&self) {
         if let Ok(sessions) = AudioSessionController::enumerate_active_sessions() {
             self.state_snapshot.write().detected_apps = sessions;
+        }
+    }
+
+    /// Updates the target physical monitor to capture via DirectX 11.
+    pub fn set_selected_monitor(&mut self, index: u32) {
+        self.config.video.display_index = index;
+        self.state_snapshot.write().selected_monitor = index;
+    }
+
+    /// Re-enumerates connected displays.
+    pub fn refresh_monitors(&self) {
+        if let Ok(monitors) = DxgiScreenCapture::enumerate_monitors() {
+            self.state_snapshot.write().detected_monitors = monitors;
         }
     }
 
