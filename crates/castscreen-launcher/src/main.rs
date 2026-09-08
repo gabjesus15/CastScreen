@@ -28,10 +28,12 @@ fn main() -> Result<()> {
 
     // Direct mode execution via CLI arguments
     if args.iter().any(|a| a == "--sender" || a == "-s") {
-        return launch_sender();
+        launch_sender()?;
+        return Ok(());
     }
     if args.iter().any(|a| a == "--receiver" || a == "-r") {
-        return launch_receiver();
+        launch_receiver()?;
+        return Ok(());
     }
 
     // Single Instance Guard: Prevent launching multiple launcher windows
