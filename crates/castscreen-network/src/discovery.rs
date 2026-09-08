@@ -128,7 +128,7 @@ pub struct DiscoveryScanner {
 
 impl DiscoveryScanner {
     pub fn new() -> Self {
-        let devices = Arc::new(RwLock::new(Vec::new()));
+        let devices: Arc<RwLock<Vec<DeviceEntry>>> = Arc::new(RwLock::new(Vec::new()));
         let is_running = Arc::new(AtomicBool::new(true));
 
         let dev_clone = devices.clone();
@@ -227,3 +227,39 @@ impl Drop for DiscoveryScanner {
         self.stop();
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_beacon_serialization_and_device() {
+        let payload = BeaconPayload {
+            device_name: "Streaming-Laptop".to_string(),
+            port: 9000,
+            role: "receiver".to_string(),
+            version: "0.2.0".to_string(),
+        };
+
+        let json = serde_json::to_string(&payload).expect("Serialization failed");
+        let parsed: BeaconPayload = serde_json::from_str(&json).expect("Deserialization failed");
+
+        assert_eq!(parsed.device_name, "Streaming-Laptop");
+        assert_eq!(parsed.port, 9000);
+        assert_eq!(parsed.role, "receiver");
+        assert_eq!(parsed.version, "0.2.0");
+
+        let dev = DiscoveredDevice {
+            device_name: parsed.device_name.clone(),
+            ip: "192.168.1.50".to_string(),
+            port: parsed.port,
+            role: parsed.role,
+            version: parsed.version,
+        };
+
+        assert_eq!(dev.name(), "Streaming-Laptop");
+        assert_eq!(dev.ip, "192.168.1.50");
+        assert_eq!(dev.port, 9000);
+    }
+}
+

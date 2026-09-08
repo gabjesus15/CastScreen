@@ -296,21 +296,24 @@ impl AppUpdater {
 
 /// Compares two semantic versions. Returns true if `remote` is strictly newer than `current`.
 pub fn is_newer_version(current: &str, remote: &str) -> bool {
-    let parse = |v: &str| -> (u32, u32, u32) {
+    let parse = |v: &str| -> Vec<u32> {
         let clean = v.trim().trim_start_matches(['v', 'V']);
-        let mut parts = clean.split('.').filter_map(|p| {
-            let num_part: String = p.chars().take_while(|c| c.is_ascii_digit()).collect();
-            num_part.parse::<u32>().ok()
-        });
-        (
-            parts.next().unwrap_or(0),
-            parts.next().unwrap_or(0),
-            parts.next().unwrap_or(0),
-        )
+        clean
+            .split('.')
+            .filter_map(|p| {
+                let num_part: String = p.chars().take_while(|c| c.is_ascii_digit()).collect();
+                num_part.parse::<u32>().ok()
+            })
+            .collect()
     };
 
-    let cur = parse(current);
-    let rem = parse(remote);
+    let mut cur = parse(current);
+    let mut rem = parse(remote);
+
+    // Normalize length by padding with zeros (e.g. 0.2.0 vs 0.2.0.1)
+    let max_len = cur.len().max(rem.len());
+    cur.resize(max_len, 0);
+    rem.resize(max_len, 0);
 
     rem > cur
 }
@@ -325,8 +328,12 @@ mod tests {
         assert!(is_newer_version("0.2.0", "0.3.0"));
         assert!(is_newer_version("0.2.0", "1.0.0"));
         assert!(is_newer_version("0.2.0", "v0.2.0.1"));
+        assert!(is_newer_version("0.2", "0.2.1"));
+        assert!(is_newer_version("0.2.0.0", "v0.2.0.1"));
 
         assert!(!is_newer_version("0.2.0", "v0.2.0"));
+        assert!(!is_newer_version("0.2.0", "0.2"));
+        assert!(!is_newer_version("0.2.0", "v0.2.0.0"));
         assert!(!is_newer_version("0.2.1", "0.2.0"));
         assert!(!is_newer_version("1.0.0", "0.9.9"));
     }
