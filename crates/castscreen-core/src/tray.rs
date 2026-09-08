@@ -3,12 +3,20 @@
 //! Provides minimal, reliable system tray icon management and Windows balloon notifications
 //! via `Shell_NotifyIconW` without external heavy dependencies.
 
-use windows::core::HSTRING;
 use windows::Win32::Foundation::HWND;
 use windows::Win32::UI::Shell::{
-    Shell_NotifyIconW, NIF_INFO, NIF_TIP, NIIF_INFO, NIIF_WARNING, NIM_ADD, NIM_DELETE,
-    NIM_MODIFY, NOTIFYICONDATAW,
+    Shell_NotifyIconW, NOTIFYICONDATAW, NOTIFY_ICON_DATA_FLAGS, NOTIFY_ICON_INFOTIP_FLAGS,
+    NOTIFY_ICON_MESSAGE,
 };
+
+const NIM_ADD: NOTIFY_ICON_MESSAGE = NOTIFY_ICON_MESSAGE(0);
+const NIM_MODIFY: NOTIFY_ICON_MESSAGE = NOTIFY_ICON_MESSAGE(1);
+const NIM_DELETE: NOTIFY_ICON_MESSAGE = NOTIFY_ICON_MESSAGE(2);
+
+const NIF_TIP_AND_INFO: NOTIFY_ICON_DATA_FLAGS = NOTIFY_ICON_DATA_FLAGS(0x00000004 | 0x00000010);
+
+const NIIF_INFO: NOTIFY_ICON_INFOTIP_FLAGS = NOTIFY_ICON_INFOTIP_FLAGS(1);
+const NIIF_WARNING: NOTIFY_ICON_INFOTIP_FLAGS = NOTIFY_ICON_INFOTIP_FLAGS(2);
 
 pub struct TrayNotifier;
 
@@ -20,28 +28,25 @@ impl TrayNotifier {
                 cbSize: std::mem::size_of::<NOTIFYICONDATAW>() as u32,
                 hWnd: HWND::default(),
                 uID: 1001,
-                uFlags: NIF_INFO | NIF_TIP,
+                uFlags: NIF_TIP_AND_INFO,
                 dwInfoFlags: if is_warning { NIIF_WARNING } else { NIIF_INFO },
                 ..Default::default()
             };
 
             // Set tooltip text
-            let tip = HSTRING::from("CastScreen Streaming");
-            let tip_slice = tip.as_wide();
-            let tip_len = tip_slice.len().min(nid.szTip.len() - 1);
-            nid.szTip[..tip_len].copy_from_slice(&tip_slice[..tip_len]);
+            for (dest, src) in nid.szTip.iter_mut().zip("CastScreen Streaming".encode_utf16()) {
+                *dest = src;
+            }
 
             // Set notification title
-            let title_hstring = HSTRING::from(title);
-            let title_slice = title_hstring.as_wide();
-            let title_len = title_slice.len().min(nid.szInfoTitle.len() - 1);
-            nid.szInfoTitle[..title_len].copy_from_slice(&title_slice[..title_len]);
+            for (dest, src) in nid.szInfoTitle.iter_mut().zip(title.encode_utf16()) {
+                *dest = src;
+            }
 
             // Set notification message
-            let msg_hstring = HSTRING::from(message);
-            let msg_slice = msg_hstring.as_wide();
-            let msg_len = msg_slice.len().min(nid.szInfo.len() - 1);
-            nid.szInfo[..msg_len].copy_from_slice(&msg_slice[..msg_len]);
+            for (dest, src) in nid.szInfo.iter_mut().zip(message.encode_utf16()) {
+                *dest = src;
+            }
 
             // Add or modify the notification
             if !Shell_NotifyIconW(NIM_MODIFY, &nid).as_bool() {

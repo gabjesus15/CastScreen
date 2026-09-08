@@ -9,7 +9,7 @@ use castscreen_core::{
     TEXT_SECONDARY,
 };
 use castscreen_network::{ReceiverStats, SrtReceiver};
-use eframe::egui::{self, Color32, Layout, Rect, RichText, Rounding, Stroke, Vec2};
+use eframe::egui::{self, Color32, Layout, Rect, RichText, Rounding, Vec2};
 
 pub struct ReceiverGuiApp {
     _receiver: SrtReceiver,

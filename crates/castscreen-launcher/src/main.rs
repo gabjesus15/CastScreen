@@ -136,7 +136,7 @@ impl eframe::App for LauncherApp {
             ui.columns(2, |columns| {
                 // Card 1: PC Gaming (Sender)
                 let col0 = &mut columns[0];
-                let card_stroke = Stroke::new(1.0, BORDER_SUBTLE);
+                let card_stroke = Stroke::new(1.0_f32, BORDER_SUBTLE);
 
                 egui::Frame::none()
                     .fill(BG_PANEL)

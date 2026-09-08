@@ -36,23 +36,23 @@ pub fn configure_dark_studio_theme(ctx: &egui::Context) {
 
     // Window & Card styling
     visuals.window_rounding = Rounding::same(10.0);
-    visuals.window_stroke = Stroke::new(1.0, BORDER_SUBTLE);
+    visuals.window_stroke = Stroke::new(1.0_f32, BORDER_SUBTLE);
 
     // Widget styling (Buttons, Sliders)
     visuals.widgets.noninteractive.bg_fill = BG_PANEL;
-    visuals.widgets.noninteractive.bg_stroke = Stroke::new(1.0, BORDER_SUBTLE);
+    visuals.widgets.noninteractive.bg_stroke = Stroke::new(1.0_f32, BORDER_SUBTLE);
     visuals.widgets.noninteractive.rounding = Rounding::same(6.0);
 
     visuals.widgets.inactive.bg_fill = BG_CONTROL;
-    visuals.widgets.inactive.bg_stroke = Stroke::new(1.0, BORDER_SUBTLE);
+    visuals.widgets.inactive.bg_stroke = Stroke::new(1.0_f32, BORDER_SUBTLE);
     visuals.widgets.inactive.rounding = Rounding::same(6.0);
 
     visuals.widgets.hovered.bg_fill = BG_HOVER;
-    visuals.widgets.hovered.bg_stroke = Stroke::new(1.0, ACCENT_BRAND);
+    visuals.widgets.hovered.bg_stroke = Stroke::new(1.0_f32, ACCENT_BRAND);
     visuals.widgets.hovered.rounding = Rounding::same(6.0);
 
     visuals.widgets.active.bg_fill = ACCENT_BRAND;
-    visuals.widgets.active.bg_stroke = Stroke::new(1.0, ACCENT_BRAND);
+    visuals.widgets.active.bg_stroke = Stroke::new(1.0_f32, ACCENT_BRAND);
     visuals.widgets.active.rounding = Rounding::same(6.0);
 
     ctx.set_visuals(visuals);
@@ -117,7 +117,7 @@ pub fn draw_ballistic_vu_meter(
 
     // Background track
     painter.rect_filled(rect, Rounding::same(3.0), BG_CONTROL);
-    painter.rect_stroke(rect, Rounding::same(3.0), Stroke::new(1.0, BORDER_SUBTLE));
+    painter.rect_stroke(rect, Rounding::same(3.0), Stroke::new(1.0_f32, BORDER_SUBTLE));
 
     let bar_height = (height - 3.0) / 2.0;
     let max_fill_width = width - 4.0;
@@ -155,7 +155,7 @@ pub fn draw_buffer_health_bar(ui: &mut egui::Ui, current_ms: u32, max_ms: u32, w
     let painter = ui.painter();
 
     painter.rect_filled(rect, Rounding::same(3.0), BG_CONTROL);
-    painter.rect_stroke(rect, Rounding::same(3.0), Stroke::new(1.0, BORDER_SUBTLE));
+    painter.rect_stroke(rect, Rounding::same(3.0), Stroke::new(1.0_f32, BORDER_SUBTLE));
 
     let ratio = (current_ms as f32 / max_ms as f32).clamp(0.0, 1.0);
     let fill_w = (width - 2.0) * ratio;
