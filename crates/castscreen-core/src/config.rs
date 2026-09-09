@@ -35,7 +35,7 @@ impl Default for VideoConfig {
             width: 1920,
             height: 1080,
             fps: 60,
-            bitrate_kbps: 30_000,
+            bitrate_kbps: 18_000,
             gop_size: 60, // 1 second keyframe interval
             nvenc_preset: "p1".to_string(), // Low latency NVENC
         }

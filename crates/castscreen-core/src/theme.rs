@@ -242,6 +242,19 @@ pub fn draw_castscreen_logo(ui: &mut egui::Ui, size: f32) {
     }
 }
 
+/// Loads the standard CastScreen window icon from the compiled assets.
+pub fn load_window_icon() -> egui::IconData {
+    let bytes = include_bytes!("../../../assets/logo.jpg");
+    let image = image::load_from_memory(bytes).expect("Failed to load logo.jpg");
+    let rgba = image.to_rgba8();
+    let (width, height) = rgba.dimensions();
+    egui::IconData {
+        rgba: rgba.into_raw(),
+        width,
+        height,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     #[test]

@@ -47,6 +47,7 @@ fn main() -> Result<()> {
             .with_inner_size([660.0, 460.0])
             .with_min_inner_size([640.0, 440.0])
             .with_resizable(false)
+            .with_icon(castscreen_core::theme::load_window_icon())
             .with_title(format!("CastScreen Launcher v{}", VERSION)),
         ..Default::default()
     };

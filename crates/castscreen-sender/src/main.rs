@@ -37,6 +37,7 @@ fn main() -> Result<()> {
         viewport: eframe::egui::ViewportBuilder::default()
             .with_inner_size([940.0, 640.0])
             .with_min_inner_size([880.0, 580.0])
+            .with_icon(castscreen_core::theme::load_window_icon())
             .with_title(&title),
         ..Default::default()
     };

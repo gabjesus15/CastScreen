@@ -618,13 +618,16 @@ impl eframe::App for SenderGuiApp {
 
                         // Capture Engine Details
                         ui.label(RichText::new("MOTOR DE CAPTURA & GPU").color(TEXT_MUTED).size(10.0));
-                        ui.label(RichText::new("• DirectX 11 Desktop Duplication (VRAM → RGBA)").size(11.0));
-                        ui.label(RichText::new("• Codificador MJPEG en CPU (baja latencia)").size(11.0));
-                        ui.label(RichText::new("• Audio WASAPI 48,000 Hz Estéreo → PCM 16-bit").size(11.0));
+                        ui.label(RichText::new("• DirectX 11 Desktop Duplication (VRAM ⭢ RGBA)").size(11.0));
+                        ui.label(RichText::new("• Codificador NVIDIA NVENC H.264 (Hardware)").size(11.0));
+                        ui.label(RichText::new("• Audio WASAPI 48,000 Hz Estéreo ⭢ PCM 16-bit").size(11.0));
 
-                        ui.add_space(14.0);
+                        ui.add_space(16.0);
                         ui.label(RichText::new("MÉTRICAS DE TRANSMISIÓN EN VIVO").color(TEXT_MUTED).size(10.0));
 
+
+                        ui.add_space(16.0);
+                        ui.label(RichText::new("ESTADO DE ENVÍO (TCP/LAN)").color(TEXT_MUTED).size(10.0));
                         // Real measured values from the running pipeline.
                         let fps_display = snapshot.current_fps;
                         let bitrate_display = snapshot.bitrate_mbps;

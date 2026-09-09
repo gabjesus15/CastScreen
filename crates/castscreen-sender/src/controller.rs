@@ -73,7 +73,7 @@ impl StreamController {
         let (audio_pcm_tx, audio_pcm_rx) = bounded::<Vec<f32>>(64);
 
         // 2. Channel for encoded MediaPackets (Video + Audio) heading to the TS Multiplexer
-        let (media_tx, media_rx) = bounded::<MediaPacket>(512);
+        let (media_tx, media_rx) = bounded::<MediaPacket>(128);
 
         // Start WASAPI Loopback Capture
         let wasapi = WasapiLoopbackCapture::start(audio_pcm_tx, self.config.audio.sample_rate)?;
