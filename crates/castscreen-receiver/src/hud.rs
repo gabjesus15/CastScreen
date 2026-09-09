@@ -11,6 +11,7 @@ use castscreen_core::{
 };
 use castscreen_network::{DiscoveryResponder, MpegTsDemuxer, ReceiverStats, SrtReceiver};
 use eframe::egui::{self, Color32, Layout, Rect, RichText, Rounding, Stroke, Vec2};
+use openh264::formats::YUVSource;
 use std::time::Instant;
 
 /// Decodes an interleaved i16 LE PCM payload into f32 samples in [-1.0, 1.0].
@@ -41,6 +42,7 @@ pub struct ReceiverGuiApp {
     frames_in_window: u32,
     fps_window_start: Instant,
     current_fps: f32,
+    h264_decoder: openh264::decoder::Decoder,
 }
 
 impl ReceiverGuiApp {
@@ -70,6 +72,7 @@ impl ReceiverGuiApp {
             frames_in_window: 0,
             fps_window_start: Instant::now(),
             current_fps: 0.0,
+            h264_decoder: openh264::decoder::Decoder::new().expect("Failed to initialize OpenH264 decoder"),
         }
     }
 }
@@ -114,11 +117,13 @@ impl eframe::App for ReceiverGuiApp {
 
         // 0.1 Decode any ready video frames from demuxer into the GPU texture
         while let Some(frame_bytes) = self.demuxer.next_video_frame() {
-            if let Ok(img) = image::load_from_memory_with_format(&frame_bytes, image::ImageFormat::Jpeg) {
-                let rgba = img.to_rgba8();
-                let width = rgba.width() as usize;
-                let height = rgba.height() as usize;
-                let color_image = egui::ColorImage::from_rgba_unmultiplied([width, height], rgba.as_raw());
+            if let Ok(Some(yuv)) = self.h264_decoder.decode(&frame_bytes) {
+                let width = yuv.dimensions().0 as usize;
+                let height = yuv.dimensions().1 as usize;
+                let mut rgba = vec![0u8; width * height * 4];
+                yuv.write_rgba8(&mut rgba);
+
+                let color_image = egui::ColorImage::from_rgba_unmultiplied([width, height], &rgba);
 
                 if let Some(texture) = &mut self.video_texture {
                     texture.set(color_image, egui::TextureOptions::LINEAR);

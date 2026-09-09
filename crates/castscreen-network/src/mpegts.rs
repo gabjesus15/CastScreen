@@ -440,6 +440,23 @@ impl MpegTsDemuxer {
         }
 
         pes_buffer.extend_from_slice(ts_payload);
+
+        // Check if the PES buffer is already complete by looking at pes_packet_len.
+        // This allows the last frame in a burst to be delivered without waiting for
+        // the next PUSI, which would otherwise cause a one-frame display lag.
+        if pes_buffer.len() >= 6 {
+            let pes_packet_len = ((pes_buffer[4] as usize) << 8) | (pes_buffer[5] as usize);
+            if pes_packet_len > 0 {
+                // total PES size = 6 byte fixed header + pes_packet_len
+                let total_expected = 6 + pes_packet_len;
+                if pes_buffer.len() >= total_expected {
+                    if let Some(frame) = Self::extract_pes_payload(pes_buffer) {
+                        completed.push(frame);
+                    }
+                    pes_buffer.clear();
+                }
+            }
+        }
     }
 
     fn extract_pes_payload(pes: &[u8]) -> Option<Vec<u8>> {

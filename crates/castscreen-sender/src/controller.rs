@@ -186,9 +186,14 @@ impl StreamController {
                     // unchanged; that is normal and simply means no new frame to send.
                     if let Ok((width, height)) = dxgi.acquire_frame_rgba(10, &mut raw_frame) {
                         let pts = clock_video.current_pts_90khz();
-                        if let Ok(video_packet) = nvenc.encode_rgba_frame(&raw_frame, width, height, pts) {
-                            let _ = media_tx_video.try_send(video_packet);
-                            frames_in_window += 1;
+                        match nvenc.encode_rgba_frame(&raw_frame, width, height, pts) {
+                            Ok(video_packet) => {
+                                let _ = media_tx_video.try_send(video_packet);
+                                frames_in_window += 1;
+                            }
+                            Err(e) => {
+                                tracing::warn!("Error al codificar frame de video: {:?}", e);
+                            }
                         }
                     }
 

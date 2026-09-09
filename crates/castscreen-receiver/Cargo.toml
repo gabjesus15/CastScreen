@@ -20,4 +20,6 @@ anyhow = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 image = { workspace = true }
+# H.264 decoder: pure-Rust Cisco OpenH264 bindings, compiles the C lib automatically.
+openh264 = { version = "0.9", features = ["source"] }
 
