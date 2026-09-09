@@ -1,7 +1,7 @@
 //! Streaming Pipeline Orchestrator for the Gaming PC (CastScreen-Sender).
 //!
 //! Coordinates zero-copy screen capture, WASAPI loopback audio, the per-application
-//! mixer, NVENC hardware encoding, and SRT transmission across isolated lock-free threads.
+//! mixer, NVENC hardware encoding, and TCP transmission across isolated lock-free threads.
 
 use anyhow::Result;
 use castscreen_capture::{
@@ -106,13 +106,13 @@ impl StreamController {
             })?;
         self.threads.push(audio_handle);
 
-        // Thread: Network Transmission (MPEG-TS Muxer -> SRT Socket)
+        // Thread: Network Transmission (MPEG-TS Muxer -> TCP socket)
         let is_running_net = self.is_running.clone();
         let net_config = self.config.network.clone();
         let snapshot_net = self.state_snapshot.clone();
 
         let net_handle = thread::Builder::new()
-            .name("ts-srt-sender".to_string())
+            .name("ts-tcp-sender".to_string())
             .spawn(move || {
                 let mut muxer = MpegTsMuxer::new();
                 // The sender is a TCP client: it connects to the receiver, so it

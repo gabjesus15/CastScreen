@@ -11,7 +11,9 @@ pub mod tray;
 pub mod update_sheet;
 pub mod updater;
 
-pub use app_launch::{launch_launcher, launch_receiver, launch_sender};
+pub use app_launch::{
+    fill_screen, launch_launcher, launch_receiver, launch_sender, Fill, FILL_SCREEN_FRAMES,
+};
 pub use audio_math::{AudioSubmixer, VuMeterLevel};
 pub use clock::QpcClock;
 pub use config::{AudioConfig, CastScreenConfig, MixerConfig, NetworkConfig, StreamProfile, VideoConfig};

@@ -62,13 +62,14 @@ impl Default for AudioConfig {
     }
 }
 
-/// SRT transport configuration with ARQ jitter buffer.
+/// LAN transport configuration.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct NetworkConfig {
     pub host: String,
     pub port: u16,
-    /// SRT latency buffer in milliseconds (500 to 2000 ms).
-    /// Generous buffer prevents packet drops over Wi-Fi 6.
+    /// Target latency budget in milliseconds, kept for the config file's
+    /// shape. The shipped transport is TCP, which paces itself, so nothing
+    /// reads this as a queue depth today.
     pub srt_latency_ms: u32,
     pub is_listener: bool,
 }

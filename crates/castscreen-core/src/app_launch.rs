@@ -8,8 +8,40 @@
 //! Going back is always available and always cheap. A choice you cannot undo
 //! is a choice people avoid making, so the mode picker is never a one-way door.
 
+use eframe::egui;
 use std::path::PathBuf;
 use std::process::Command;
+
+/// How many frames to keep asking the window manager to fill the screen.
+///
+/// A single request on the first frame can land before the window is mapped
+/// and be dropped silently, so the ask is repeated for a few frames and then
+/// stops — it is a request, not a loop that fights the user.
+pub const FILL_SCREEN_FRAMES: u32 = 8;
+
+/// How the window should fill the screen at startup.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum Fill {
+    /// Fills the work area but keeps its title bar, so the system close box
+    /// stays reachable.
+    Maximized,
+    /// Borderless, edge to edge — for a surface whose whole point is the
+    /// picture, and which offers its own way back out.
+    Fullscreen,
+}
+
+/// Ask the window to fill the screen; call once per frame while `frames` > 0.
+pub fn fill_screen(ctx: &egui::Context, frames: &mut u32, fill: Fill) {
+    if *frames == 0 {
+        return;
+    }
+    *frames -= 1;
+    ctx.send_viewport_cmd(match fill {
+        Fill::Maximized => egui::ViewportCommand::Maximized(true),
+        Fill::Fullscreen => egui::ViewportCommand::Fullscreen(true),
+    });
+    ctx.request_repaint();
+}
 
 /// The launcher's executable name (see the `[[bin]]` entry in its manifest).
 pub const LAUNCHER_BIN: &str = "CastScreen";

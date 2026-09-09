@@ -2,7 +2,7 @@
 
 //! CastScreen Receiver - Main Desktop GUI Application (Streaming Laptop).
 //!
-//! Receives synchronized MPEG-TS/SRT stream, renders hardware-accelerated 60 FPS preview,
+//! Receives the synchronized MPEG-TS stream over TCP, renders a 60 FPS preview,
 //! plays audio in real time, and provides clean window capture for TikTok Live Studio and OBS.
 
 mod audio_out;
@@ -38,7 +38,6 @@ fn main() -> Result<()> {
         vsync: true,
         viewport: eframe::egui::ViewportBuilder::default()
             .with_fullscreen(true)
-            .with_inner_size([1080.0, 720.0])
             .with_min_inner_size([800.0, 500.0])
             .with_icon(castscreen_core::theme::load_window_icon())
             .with_title(&title),

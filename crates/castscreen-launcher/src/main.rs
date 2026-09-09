@@ -17,9 +17,9 @@
 
 use anyhow::Result;
 use castscreen_core::{
-    card, chip, configure_dark_studio_theme, draw_castscreen_logo, feature_row, launch_receiver,
+    card, chip, configure_dark_studio_theme, fill_screen, draw_castscreen_logo, feature_row, launch_receiver,
     launch_sender, material, peek_spring, space, text as ty, update_chip, update_sheet, AppUpdater,
-    Layer, SingleInstanceGuard, UpdateState, ACCENT_BRAND, ACCENT_LIVE, TEXT_MUTED, TEXT_PRIMARY,
+    Layer, Fill, SingleInstanceGuard, UpdateState, FILL_SCREEN_FRAMES, ACCENT_BRAND, ACCENT_LIVE, TEXT_MUTED, TEXT_PRIMARY,
     TEXT_SECONDARY,
 };
 use eframe::egui::{self, Align, Layout};
@@ -53,7 +53,6 @@ fn main() -> Result<()> {
 
     let native_options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
-            .with_inner_size([700.0, 520.0])
             .with_min_inner_size([680.0, 500.0])
             .with_maximized(true)
             .with_icon(castscreen_core::theme::load_window_icon())
@@ -88,8 +87,8 @@ struct LauncherApp {
     status_msg: String,
     updater: AppUpdater,
     show_update_sheet: bool,
-    /// Cleared after the first frame has asked the window to fill the screen.
-    needs_maximize: bool,
+    /// Counts down while the window is still being asked to fill the screen.
+    fill_frames: u32,
 }
 
 impl LauncherApp {
@@ -102,7 +101,7 @@ impl LauncherApp {
             status_msg: String::new(),
             updater,
             show_update_sheet: false,
-            needs_maximize: true,
+            fill_frames: FILL_SCREEN_FRAMES,
         }
     }
 
@@ -139,10 +138,7 @@ impl eframe::App for LauncherApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         configure_dark_studio_theme(ctx);
 
-        if self.needs_maximize {
-            ctx.send_viewport_cmd(egui::ViewportCommand::Maximized(true));
-            self.needs_maximize = false;
-        }
+        fill_screen(ctx, &mut self.fill_frames, Fill::Maximized);
 
         let update_state = self.updater.get_state();
         if matches!(update_state, UpdateState::Downloading { .. }) {
@@ -191,7 +187,7 @@ impl eframe::App for LauncherApp {
                     ui.label(ty::CAPTION.colored(status, TEXT_MUTED));
                     ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                         ui.label(ty::CAPTION.colored(
-                            "Direct3D 11 · WASAPI · SRT MPEG-TS",
+                            "Direct3D 11 · WASAPI · MPEG-TS sobre TCP",
                             TEXT_MUTED,
                         ));
                     });
@@ -203,25 +199,31 @@ impl eframe::App for LauncherApp {
             .show(ctx, |ui| {
                 // The window fills the screen, but a line of text does not get
                 // easier to read by getting longer. The choice stays in a
-                // measured column, centred, with the empty space left as space.
-                let column = ui.available_width().min(900.0);
-                let gutter = ((ui.available_width() - column) * 0.5).max(0.0);
-                ui.add_space(((ui.available_height() - 460.0) * 0.35).max(0.0));
+                // measured column, centred, and grows with the display instead
+                // of sitting small in the middle of it.
+                let full_width = ui.available_width();
+                let scale = (full_width / 1000.0).clamp(1.0, 1.5);
+                let column = (860.0 * scale).min(full_width);
+                let gutter = ((full_width - column) * 0.5).max(0.0);
+                let block_height = 360.0 * scale;
+                ui.add_space(((ui.available_height() - block_height) * 0.5).max(0.0));
+
                 ui.horizontal(|ui| {
                     ui.add_space(gutter);
                     ui.vertical(|ui| {
                     ui.set_max_width(column);
-                ui.label(ty::DISPLAY.colored("¿Qué papel cumple esta computadora?", TEXT_PRIMARY));
-                ui.add_space(space::SM);
-                ui.label(ty::BODY.colored(
+                ui.label(ty::DISPLAY.scaled(scale).colored("¿Qué papel cumple esta computadora?", TEXT_PRIMARY));
+                ui.add_space(space::SM * scale);
+                ui.label(ty::BODY.scaled(scale).colored(
                     "CastScreen corre en las dos a la vez: la PC que juega envía, la laptop recibe y transmite.",
                     TEXT_SECONDARY,
                 ));
-                ui.add_space(space::XL);
+                ui.add_space(space::XL * scale);
 
                 ui.columns(2, |columns| {
                     let sender = role_card(
                         &mut columns[0],
+                        scale,
                         "sender",
                         ACCENT_LIVE,
                         "PC DE JUEGO",
@@ -231,13 +233,14 @@ impl eframe::App for LauncherApp {
                             "Captura DirectX 11 en VRAM, sin copias",
                             "Codificación NVENC por hardware",
                             "Mezclador de audio por aplicación",
-                            "Búfer SRT de 1.000 ms para Wi-Fi",
+                            "Entrega sin pérdidas por TCP en LAN",
                         ],
                         "Iniciar emisor",
                     );
 
                     let receiver = role_card(
                         &mut columns[1],
+                        scale,
                         "receiver",
                         ACCENT_BRAND,
                         "LAPTOP DE STREAMING",
@@ -247,7 +250,7 @@ impl eframe::App for LauncherApp {
                             "Previsualización a 60 FPS sin jitter",
                             "Monitor de audio maestro en audífonos",
                             "Modo captura limpia en un clic",
-                            "Reensamblado MPEG-TS y corrección de PTS",
+                            "Reensamblado MPEG-TS con PTS común",
                         ],
                         "Iniciar receptor",
                     );
@@ -280,6 +283,7 @@ impl eframe::App for LauncherApp {
 #[allow(clippy::too_many_arguments)]
 fn role_card(
     ui: &mut egui::Ui,
+    scale: f32,
     id: &str,
     accent: egui::Color32,
     machine: &str,
@@ -291,21 +295,22 @@ fn role_card(
     let nudge = peek_spring(ui.ctx(), ui.id().with(id).with("hover")) * 4.0;
 
     card(ui, id, accent, |ui| {
-        ui.label(ty::OVERLINE.colored(machine, accent));
-        ui.add_space(space::XS);
-        ui.label(ty::HEADLINE.colored(headline, TEXT_PRIMARY));
-        ui.add_space(space::XS);
-        ui.label(ty::CALLOUT.colored(purpose, TEXT_SECONDARY));
+        ui.label(ty::OVERLINE.scaled(scale).colored(machine, accent));
+        ui.add_space(space::XS * scale);
+        ui.label(ty::HEADLINE.scaled(scale).colored(headline, TEXT_PRIMARY));
+        ui.add_space(space::XS * scale);
+        ui.label(ty::CALLOUT.scaled(scale).colored(purpose, TEXT_SECONDARY));
 
-        ui.add_space(space::MD);
+        ui.add_space(space::LG * scale);
         for feature in features {
-            feature_row(ui, feature, accent);
+            feature_row(ui, feature, accent, scale);
+            ui.add_space(space::XXS * scale);
         }
 
-        ui.add_space(space::LG);
+        ui.add_space(space::LG * scale);
         ui.horizontal(|ui| {
             ui.add_space(nudge);
-            ui.label(ty::BODY_EMPHASIS.colored(format!("{action}  →"), accent));
+            ui.label(ty::BODY_EMPHASIS.scaled(scale).colored(format!("{action}  →"), accent));
         });
     })
     .clicked()

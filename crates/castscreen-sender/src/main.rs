@@ -3,7 +3,7 @@
 //! CastScreen Sender - Main Desktop GUI Application (PC Gaming).
 //!
 //! Captures screen via DirectX 11 VRAM, loopback audio via WASAPI,
-//! manages per-app mixing, and streams via SRT with an ARQ jitter buffer.
+//! manages per-app mixing, and streams MPEG-TS over a TCP link on the LAN.
 
 mod controller;
 mod gui;
@@ -36,7 +36,6 @@ fn main() -> Result<()> {
     let native_options = eframe::NativeOptions {
         viewport: eframe::egui::ViewportBuilder::default()
             .with_maximized(true)
-            .with_inner_size([940.0, 640.0])
             .with_min_inner_size([880.0, 580.0])
             .with_icon(castscreen_core::theme::load_window_icon())
             .with_title(&title),

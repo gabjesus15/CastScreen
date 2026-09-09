@@ -16,8 +16,8 @@
 use crate::audio_out::AudioOutput;
 use castscreen_core::{
     button, chip, configure_dark_studio_theme, draw_castscreen_logo, draw_live_badge,
-    draw_vu_meter, fader, launch_launcher, material, prefers_reduced_motion, sheet, sheet_header,
-    space, text as ty, AudioSubmixer, ButtonStyle, Dismiss, Layer, ACCENT_BRAND, ACCENT_DANGER,
+    draw_vu_meter, fader, fill_screen, launch_launcher, material, prefers_reduced_motion, sheet, sheet_header,
+    space, text as ty, AudioSubmixer, ButtonStyle, Dismiss, Fill, Layer, FILL_SCREEN_FRAMES, ACCENT_BRAND, ACCENT_DANGER,
     ACCENT_LIVE, BG_CANVAS, BORDER_SUBTLE, CURRENT_VERSION, TEXT_MUTED, TEXT_PRIMARY,
     TEXT_SECONDARY,
 };
@@ -64,6 +64,8 @@ pub struct ReceiverGuiApp {
     record_file: Option<std::fs::File>,
     /// Set while the window is asking permission to drop a live link.
     show_leave_sheet: bool,
+    /// Counts down while the window is still being asked to fill the screen.
+    fill_frames: u32,
 }
 
 impl ReceiverGuiApp {
@@ -98,6 +100,7 @@ impl ReceiverGuiApp {
                 .expect("Failed to initialize OpenH264 decoder"),
             record_file: None,
             show_leave_sheet: false,
+            fill_frames: FILL_SCREEN_FRAMES,
         }
     }
 
@@ -192,6 +195,7 @@ impl ReceiverGuiApp {
 impl eframe::App for ReceiverGuiApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         configure_dark_studio_theme(ctx);
+        fill_screen(ctx, &mut self.fill_frames, Fill::Fullscreen);
         self.pump_stream(ctx);
 
         // Escape is the way out of clean capture mode, and the hint says so
@@ -321,7 +325,7 @@ impl ReceiverGuiApp {
                         ));
                         ui.label(ty::CAPTION.colored("·", TEXT_MUTED));
                         ui.label(ty::CAPTION.mono_colored(
-                            format!("búfer {} ms", self.stats.buffer_ms),
+                            format!("{:.0} MB recibidos", self.stats.total_bytes_received as f64 / (1024.0 * 1024.0)),
                             TEXT_SECONDARY,
                         ));
                     });

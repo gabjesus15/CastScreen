@@ -87,6 +87,21 @@ impl TextRole {
         self.mono(text).color(color)
     }
 
+    /// The same role at a different size.
+    ///
+    /// Tracking scales with the size because tracking *is* size-specific: a
+    /// role blown up 40 % and given its original tracking would read loose,
+    /// which is the exact mistake the scale exists to prevent. Leading is a
+    /// ratio already, so it carries over untouched.
+    pub fn scaled(&self, factor: f32) -> Self {
+        Self {
+            size: self.size * factor,
+            tracking: self.tracking * factor,
+            leading: self.leading,
+            weight: self.weight,
+        }
+    }
+
     /// The `FontId` for this role, for direct painter calls.
     pub fn font_id(&self) -> FontId {
         FontId::new(self.size, self.family())
@@ -213,6 +228,15 @@ mod tests {
         assert!(DISPLAY.leading < TITLE.leading);
         assert!(TITLE.leading < HEADLINE.leading);
         assert!(HEADLINE.leading < BODY.leading);
+    }
+
+    #[test]
+    fn scaling_a_role_scales_its_tracking_with_it() {
+        let big = DISPLAY.scaled(1.5);
+        assert_eq!(big.size, DISPLAY.size * 1.5);
+        assert_eq!(big.tracking, DISPLAY.tracking * 1.5);
+        assert_eq!(big.leading, DISPLAY.leading, "leading is a ratio, not a length");
+        assert_eq!(big.weight, DISPLAY.weight);
     }
 
     #[test]

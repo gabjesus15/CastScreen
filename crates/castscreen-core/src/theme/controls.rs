@@ -420,13 +420,14 @@ pub fn card(
 ///
 /// The tick is the accent so the eye can scan capability without reading, and
 /// the text stays secondary so the list never competes with the card's title.
-pub fn feature_row(ui: &mut egui::Ui, text: &str, accent: Color32) {
+pub fn feature_row(ui: &mut egui::Ui, text: &str, accent: Color32, scale: f32) {
+    let role = ty::CALLOUT.scaled(scale);
     ui.horizontal(|ui| {
         // Painted rather than typed: a tick glyph depends on whichever face
         // the system happens to have, and a missing one shows as tofu.
-        let (rect, _) = ui.allocate_exact_size(Vec2::new(9.0, ty::CALLOUT.size), Sense::hover());
-        ui.painter().circle_filled(rect.center(), 2.5, accent);
-        ui.label(ty::CALLOUT.colored(text, TEXT_SECONDARY));
+        let (rect, _) = ui.allocate_exact_size(Vec2::new(9.0 * scale, role.size), Sense::hover());
+        ui.painter().circle_filled(rect.center(), 2.5 * scale, accent);
+        ui.label(role.colored(text, TEXT_SECONDARY));
     });
 }
 

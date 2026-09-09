@@ -19,9 +19,9 @@ use crate::controller::StreamController;
 use castscreen_capture::AudioSessionController;
 use castscreen_core::{
     button, chip, configure_dark_studio_theme, draw_buffer_health_bar, draw_castscreen_logo,
-    draw_live_badge, draw_vu_meter, material, material_accented, scroll_edge, section_label, sheet,
+    draw_live_badge, draw_vu_meter, fill_screen, material, material_accented, scroll_edge, section_label, sheet,
     sheet_header, space, stat_row, switch, text as ty, update_chip, update_sheet, AppUpdater,
-    launch_launcher, ButtonStyle, Dismiss, Layer, TrayNotifier, UpdateState, ACCENT_BRAND,
+    launch_launcher, ButtonStyle, Dismiss, Fill, Layer, FILL_SCREEN_FRAMES, TrayNotifier, UpdateState, ACCENT_BRAND,
     ACCENT_DANGER, ACCENT_LIVE, ACCENT_WARN, CURRENT_VERSION, TEXT_MUTED, TEXT_PRIMARY,
     TEXT_SECONDARY,
 };
@@ -63,8 +63,8 @@ pub struct SenderGuiApp {
     leaving: Option<Leaving>,
     show_leave_sheet: bool,
     show_update_sheet: bool,
-    /// Cleared after the first frame has asked the window to fill the screen.
-    needs_maximize: bool,
+    /// Counts down while the window is still being asked to fill the screen.
+    fill_frames: u32,
 }
 
 impl SenderGuiApp {
@@ -84,7 +84,7 @@ impl SenderGuiApp {
             leaving: None,
             show_leave_sheet: false,
             show_update_sheet: false,
-            needs_maximize: true,
+            fill_frames: FILL_SCREEN_FRAMES,
         }
     }
 
@@ -131,10 +131,7 @@ impl eframe::App for SenderGuiApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         configure_dark_studio_theme(ctx);
 
-        if self.needs_maximize {
-            ctx.send_viewport_cmd(egui::ViewportCommand::Maximized(true));
-            self.needs_maximize = false;
-        }
+        fill_screen(ctx, &mut self.fill_frames, Fill::Maximized);
 
         let update_state = self.updater.get_state();
         if matches!(update_state, UpdateState::Downloading { .. }) {
