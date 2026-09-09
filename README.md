@@ -30,16 +30,18 @@ Transmitir videojuegos desde una PC de juegos a una laptop de streaming por red 
    - La CPU ni se entera: cero impacto en tus FPS competitivos.
 2. **Sincronización Matemática Audio/Video:**
    - Reloj maestro común basado en Windows `QueryPerformanceCounter` (QPC a 10 MHz).
-   - Video H.264 y Audio AAC multiplexados en **MPEG-TS** con marcas de tiempo (PTS) idénticas. El audio no se adelanta ni se atrasa, jamás.
-3. **Búfer de Resiliencia para Wi-Fi 6:**
-   - Protocolo **SRT (Secure Reliable Transport)** con búfer de retransmisión de 1.000 ms a 2.000 ms.
+   - Video H.264 y Audio PCM Lossless multiplexados en **MPEG-TS** con marcas de tiempo (PTS) idénticas. El audio no se adelanta ni se atrasa, jamás.
+3. **Búfer de Resiliencia en Memoria (Bounded Channels):**
+   - Protocolo **TCP** robusto y de baja sobrecarga en LAN, emparejado con un búfer interno de 512 cuadros (casi 8 segundos de video) en memoria RAM.
    - Las microinterferencias del Wi-Fi se recuperan en segundo plano sin alterar la velocidad de reproducción ni provocar chasquidos.
 4. **Mezclador de Audio por Aplicación Nativo:**
    - Detecta automáticamente cada programa que produce sonido (`VALORANT.exe`, `Discord.exe`, `Spotify.exe`, etc.) y tu micrófono.
    - Interruptores `[ON / OFF]` y deslizadores de volumen individuales: silencia Discord del stream con un solo clic mientras tú lo sigues escuchando.
 5. **Receptor con Previsualización en Vivo (`CastScreen-Receiver`):**
-   - Ventana fluida a 60 FPS acelerada por hardware en la laptop (iGPU Radeon).
+   - Ventana fluida a 60 FPS decodificada puramente en Rust (`openh264`).
    - Vúmetros estéreo en tiempo real y panel de diagnóstico para verificar todo antes de iniciar directo en TikTok Live Studio u OBS.
+6. **Grabación Nativa Zero-Copy:**
+   - Graba la transmisión impecable directamente en tu disco sin interfaces gráficas, interceptando el flujo MPEG-TS y guardando en formato `.ts` listos para Premiere, CapCut o VLC, todo con cero coste de CPU.
 
 ---
 
@@ -48,23 +50,22 @@ Transmitir videojuegos desde una PC de juegos a una laptop de streaming por red 
 ```mermaid
 flowchart LR
     subgraph PC_Gaming["PC GAMING (RTX 3070)"]
-        A[Pantalla / Juego] -->|DirectX 11 VRAM| B[NVIDIA NVENC H.264]
+        A[Pantalla / Juego] -->|DirectX 11 VRAM| B[NVIDIA NVENC H.264 MFT]
         C[WASAPI Audio Loopback] --> MIX[Mezclador por Aplicación]
         D[IAudioSessionManager2 Apps] --> MIX
-        MIX --> E[AAC Encoder 320kbps]
+        MIX --> E[PCM i16 Packer Lossless]
         B --> F[Multiplexor MPEG-TS con PTS Común]
         E --> F
-        F --> G[Emisor SRT - Búfer 1000ms]
+        F --> G[Emisor TCP LAN - Búfer 512 Frames]
     end
 
-    G ==>|Red Local Wi-Fi 6| H
+    G ==>|Red Local Wi-Fi 6 / Ethernet| H
 
     subgraph Laptop_Stream["LAPTOP STREAMING (Ryzen 5 5500)"]
-        H[Receptor SRT con Jitter Buffer] --> I{Destino}
-        I -->|Opción A| J[CastScreen Preview: Ventana 60FPS + Audio]
-        I -->|Opción B| K[OBS Studio: Media Source srt://]
-        J --> L[TikTok Live Studio]
-        K --> L
+        H[Receptor TCP LAN] --> I{Destino}
+        I -->|HUD| J[CastScreen Preview: Ventana 60FPS + Audio]
+        I -->|Grabación| K[Archivo Raw .ts]
+        J --> L[TikTok Live Studio / OBS]
     end
 ```
 

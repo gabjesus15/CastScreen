@@ -43,6 +43,7 @@ pub struct ReceiverGuiApp {
     fps_window_start: Instant,
     current_fps: f32,
     h264_decoder: openh264::decoder::Decoder,
+    record_file: Option<std::fs::File>,
 }
 
 impl ReceiverGuiApp {
@@ -73,6 +74,7 @@ impl ReceiverGuiApp {
             fps_window_start: Instant::now(),
             current_fps: 0.0,
             h264_decoder: openh264::decoder::Decoder::new().expect("Failed to initialize OpenH264 decoder"),
+            record_file: None,
         }
     }
 }
@@ -92,6 +94,10 @@ impl eframe::App for ReceiverGuiApp {
 
         if bytes_read > 0 {
             self.demuxer.feed_ts_bytes(&self.buffer_drain);
+            if let Some(file) = &mut self.record_file {
+                use std::io::Write;
+                let _ = file.write_all(&self.buffer_drain);
+            }
         }
 
         // Connection state comes straight from the TCP link, not from guessing at
@@ -189,6 +195,31 @@ impl eframe::App for ReceiverGuiApp {
                         draw_live_badge(ui, self.is_connected, 0);
 
                         ui.with_layout(Layout::right_to_left(egui::Align::Center), |ui| {
+                            // Record Button
+                            let is_recording = self.record_file.is_some();
+                            let rec_text = if is_recording { "⏹ Detener Grabación" } else { "🔴 Grabar Pantalla" };
+                            let rec_color = if is_recording { Color32::RED } else { BG_CONTROL };
+                            
+                            if ui
+                                .add(
+                                    egui::Button::new(RichText::new(rec_text).size(11.0).color(Color32::WHITE))
+                                        .fill(rec_color)
+                                        .rounding(Rounding::same(6.0)),
+                                 )
+                                .clicked()
+                            {
+                                if is_recording {
+                                    self.record_file = None; // Closes file automatically
+                                } else {
+                                    let timestamp = std::time::SystemTime::now()
+                                        .duration_since(std::time::UNIX_EPOCH)
+                                        .unwrap()
+                                        .as_secs();
+                                    let filename = format!("CastScreen_Record_{}.ts", timestamp);
+                                    self.record_file = std::fs::File::create(&filename).ok();
+                                }
+                            }
+                            
                             // Clean Capture Mode Toggle (For OBS / TikTok)
                             let clean_btn = ui.add(
                                 egui::Button::new(

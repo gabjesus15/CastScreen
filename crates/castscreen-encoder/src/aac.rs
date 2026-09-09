@@ -13,7 +13,7 @@ use castscreen_core::{AudioConfig, MediaPacket};
 use thiserror::Error;
 
 #[derive(Error, Debug)]
-pub enum AacEncodeError {
+pub enum PcmPackError {
     #[error("Failed to initialize audio encoder: {0}")]
     InitFailed(String),
     #[error("Audio encoding buffer overflow")]
@@ -21,13 +21,13 @@ pub enum AacEncodeError {
 }
 
 /// Packs stereo f32 PCM blocks into interleaved i16 LE PCM packets with PTS.
-pub struct AacEncoder {
+pub struct PcmPacker {
     config: AudioConfig,
     samples_processed: u64,
 }
 
-impl AacEncoder {
-    pub fn new(config: AudioConfig) -> Result<Self, AacEncodeError> {
+impl PcmPacker {
+    pub fn new(config: AudioConfig) -> Result<Self, PcmPackError> {
         tracing::info!(
             "PCM audio packer initialized: {}Hz, {} channels (i16 LE transport)",
             config.sample_rate,

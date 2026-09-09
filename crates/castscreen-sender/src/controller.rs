@@ -9,7 +9,7 @@ use castscreen_capture::{
     WasapiLoopbackCapture,
 };
 use castscreen_core::{AudioSubmixer, CastScreenConfig, MediaPacket, QpcClock, VuMeterLevel};
-use castscreen_encoder::{AacEncoder, NvencEncoder};
+use castscreen_encoder::{NvencEncoder, PcmPacker};
 use castscreen_network::{MpegTsMuxer, SrtSender};
 use crossbeam_channel::bounded;
 use parking_lot::RwLock;
@@ -73,7 +73,7 @@ impl StreamController {
         let (audio_pcm_tx, audio_pcm_rx) = bounded::<Vec<f32>>(64);
 
         // 2. Channel for encoded MediaPackets (Video + Audio) heading to the TS Multiplexer
-        let (media_tx, media_rx) = bounded::<MediaPacket>(128);
+        let (media_tx, media_rx) = bounded::<MediaPacket>(512);
 
         // Start WASAPI Loopback Capture
         let wasapi = WasapiLoopbackCapture::start(audio_pcm_tx, self.config.audio.sample_rate)?;
@@ -89,7 +89,7 @@ impl StreamController {
         let audio_handle = thread::Builder::new()
             .name("audio-encoder".to_string())
             .spawn(move || {
-                let mut aac = AacEncoder::new(audio_config).expect("AAC encoder init failed");
+                let mut aac = PcmPacker::new(audio_config).expect("PCM packer init failed");
 
                 while is_running_audio.load(Ordering::Relaxed) {
                     if let Ok(pcm_chunk) = audio_pcm_rx.recv_timeout(Duration::from_millis(50)) {
