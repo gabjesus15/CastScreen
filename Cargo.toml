@@ -44,6 +44,9 @@ toml = "0.8"
 # HTTP Client & Auto-Updater
 ureq = { version = "2.10", features = ["json"] }
 
+# Image & Frame Encoding/Decoding
+image = { version = "0.25", default-features = false, features = ["jpeg", "png"] }
+
 # GUI & Desktop Framework
 eframe = "0.28"
 egui_extras = "0.28"

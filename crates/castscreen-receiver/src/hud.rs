@@ -8,13 +8,16 @@ use castscreen_core::{
     ACCENT_BRAND, ACCENT_LIVE, BG_CANVAS, BG_CONTROL, BG_PANEL, BORDER_SUBTLE, TEXT_MUTED,
     TEXT_PRIMARY, TEXT_SECONDARY,
 };
-use castscreen_network::{DiscoveryResponder, ReceiverStats, SrtReceiver};
+use castscreen_network::{DiscoveryResponder, MpegTsDemuxer, ReceiverStats, SrtReceiver};
 use eframe::egui::{self, Color32, Layout, Rect, RichText, Rounding, Stroke, Vec2};
 use std::time::Instant;
 
 pub struct ReceiverGuiApp {
     receiver: SrtReceiver,
     _discovery_responder: DiscoveryResponder,
+    demuxer: MpegTsDemuxer,
+    video_texture: Option<egui::TextureHandle>,
+    frame_dimensions: Option<(usize, usize)>,
     is_connected: bool,
     clean_capture_mode: bool,
     master_volume: f32,
@@ -35,6 +38,9 @@ impl ReceiverGuiApp {
         Self {
             receiver,
             _discovery_responder: discovery_responder,
+            demuxer: MpegTsDemuxer::new(),
+            video_texture: None,
+            frame_dimensions: None,
             is_connected: false, // Disconnected until incoming packets arrive
             clean_capture_mode: false,
             master_volume: 0.85,
@@ -42,7 +48,7 @@ impl ReceiverGuiApp {
             left_vu: 0.0,
             right_vu: 0.0,
             last_packet_time: None,
-            buffer_drain: Vec::with_capacity(8192),
+            buffer_drain: Vec::with_capacity(32768),
         }
     }
 }
@@ -56,14 +62,17 @@ impl eframe::App for ReceiverGuiApp {
         let bytes_read = self.receiver.receive_ts_chunk(&mut self.buffer_drain);
         self.stats = self.receiver.get_stats();
 
-        if bytes_read > 0 || self.stats.received_mbps > 0.05 {
+        if bytes_read > 0 {
+            self.demuxer.feed_ts_bytes(&self.buffer_drain);
             self.is_connected = true;
             self.last_packet_time = Some(Instant::now());
             let time = ctx.input(|i| i.time) as f32;
             self.left_vu = (0.55 + 0.25 * (time * 6.0).sin()).clamp(0.0, 1.0);
             self.right_vu = (0.52 + 0.25 * (time * 6.2 + 0.4).sin()).clamp(0.0, 1.0);
+        } else if self.stats.received_mbps > 0.05 {
+            self.is_connected = true;
         } else if let Some(last) = self.last_packet_time {
-            if last.elapsed().as_secs() >= 2 {
+            if last.elapsed().as_secs() >= 3 {
                 self.is_connected = false;
                 self.left_vu = 0.0;
                 self.right_vu = 0.0;
@@ -72,6 +81,32 @@ impl eframe::App for ReceiverGuiApp {
             self.is_connected = false;
             self.left_vu = 0.0;
             self.right_vu = 0.0;
+        }
+
+        // 0.1 Decode any ready video frames from demuxer into the GPU texture
+        while let Some(frame_bytes) = self.demuxer.next_video_frame() {
+            if let Ok(img) = image::load_from_memory_with_format(&frame_bytes, image::ImageFormat::Jpeg) {
+                let rgba = img.to_rgba8();
+                let width = rgba.width() as usize;
+                let height = rgba.height() as usize;
+                let color_image = egui::ColorImage::from_rgba_unmultiplied([width, height], rgba.as_raw());
+
+                if let Some(texture) = &mut self.video_texture {
+                    texture.set(color_image, egui::TextureOptions::LINEAR);
+                } else {
+                    self.video_texture = Some(ctx.load_texture(
+                        "castscreen_live_video",
+                        color_image,
+                        egui::TextureOptions::LINEAR,
+                    ));
+                }
+                self.frame_dimensions = Some((width, height));
+            }
+        }
+
+        // Keep 60 FPS continuous repaint while connected
+        if self.is_connected {
+            ctx.request_repaint();
         }
 
         // Escape key exits clean capture mode
@@ -195,15 +230,17 @@ impl eframe::App for ReceiverGuiApp {
             .frame(egui::Frame::none().fill(BG_CANVAS))
             .show(ctx, |ui| {
                 let available_rect = ui.available_rect_before_wrap();
-
-                // Compute centered 16:9 aspect ratio frame
                 let avail_w = available_rect.width();
                 let avail_h = available_rect.height();
 
-                let (target_w, target_h) = if avail_w / avail_h > 16.0 / 9.0 {
-                    (avail_h * (16.0 / 9.0), avail_h)
+                // Compute centered aspect ratio frame (from incoming stream or 16:9 default)
+                let (frame_w, frame_h) = self.frame_dimensions.unwrap_or((1920, 1080));
+                let aspect = frame_w as f32 / frame_h as f32;
+
+                let (target_w, target_h) = if avail_w / avail_h > aspect {
+                    (avail_h * aspect, avail_h)
                 } else {
-                    (avail_w, avail_w * (9.0 / 16.0))
+                    (avail_w, avail_w / aspect)
                 };
 
                 let offset_x = available_rect.min.x + (avail_w - target_w) / 2.0;
@@ -222,33 +259,45 @@ impl eframe::App for ReceiverGuiApp {
                 let border_color = if self.is_connected { ACCENT_LIVE } else { BORDER_SUBTLE };
                 painter.rect_stroke(video_rect, Rounding::same(6.0), Stroke::new(1.5_f32, border_color));
 
-                if self.is_connected {
-                    // Active Video Signal indicator & telemetry badge
+                if let Some(texture) = &self.video_texture {
+                    // Paint the live video frame directly into the GPU canvas
+                    painter.image(
+                        texture.id(),
+                        video_rect,
+                        Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0)),
+                        Color32::WHITE,
+                    );
+
+                    // If not in Clean Capture Mode, show subtle live status in top-right
+                    if !self.clean_capture_mode {
+                        let badge_pos = egui::pos2(video_rect.max.x - 12.0, video_rect.min.y + 12.0);
+                        painter.text(
+                            badge_pos,
+                            egui::Align2::RIGHT_TOP,
+                            format!("🟢 60.0 FPS · {:.1} Mbps", self.stats.received_mbps),
+                            egui::FontId::proportional(11.0),
+                            ACCENT_LIVE,
+                        );
+                    }
+                } else if self.is_connected {
+                    // Active Video Signal indicator while waiting for first keyframe
                     painter.text(
-                        video_rect.center() - Vec2::new(0.0, 30.0),
+                        video_rect.center() - Vec2::new(0.0, 15.0),
                         egui::Align2::CENTER_CENTER,
-                        "🟢 SEÑAL DE VIDEO Y AUDIO ACTIVA (60.0 FPS)",
+                        "🟢 SEÑAL DE FLUJO ACTIVA",
                         egui::FontId::proportional(16.0),
                         ACCENT_LIVE,
                     );
 
                     painter.text(
-                        video_rect.center() + Vec2::new(0.0, 5.0),
+                        video_rect.center() + Vec2::new(0.0, 15.0),
                         egui::Align2::CENTER_CENTER,
                         format!(
-                            "Flujo MPEG-TS H.264 (NVENC RTX) · Tasa: {:.1} Mbps · Búfer: {} ms",
-                            self.stats.received_mbps, self.stats.buffer_ms
+                            "MPEG-TS recibiendo · Tasa: {:.1} Mbps · Sincronizando fotogramas...",
+                            self.stats.received_mbps
                         ),
-                        egui::FontId::proportional(13.0),
-                        TEXT_PRIMARY,
-                    );
-
-                    painter.text(
-                        video_rect.center() + Vec2::new(0.0, 35.0),
-                        egui::Align2::CENTER_CENTER,
-                        "Captura esta ventana en TikTok Live Studio u OBS Studio para emitir en directo",
-                        egui::FontId::proportional(11.0),
-                        TEXT_MUTED,
+                        egui::FontId::proportional(12.0),
+                        TEXT_SECONDARY,
                     );
                 } else {
                     // Radar Waiting animation

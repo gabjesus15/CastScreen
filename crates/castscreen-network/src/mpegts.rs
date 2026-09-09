@@ -320,6 +320,139 @@ impl Default for MpegTsMuxer {
     }
 }
 
+/// MPEG-2 Transport Stream Demultiplexer.
+///
+/// Reassembles 188-byte TS packets from the network, demultiplexes video PES streams
+/// (PID 0x0100), and outputs complete frame payloads ready for decoding.
+pub struct MpegTsDemuxer {
+    video_pes_buffer: Vec<u8>,
+    completed_video_frames: Vec<Vec<u8>>,
+    leftover: Vec<u8>,
+}
+
+impl Default for MpegTsDemuxer {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl MpegTsDemuxer {
+    pub fn new() -> Self {
+        Self {
+            video_pes_buffer: Vec::with_capacity(262144),
+            completed_video_frames: Vec::new(),
+            leftover: Vec::with_capacity(TS_PACKET_SIZE * 2),
+        }
+    }
+
+    /// Feeds incoming raw network data into the demultiplexer.
+    pub fn feed_ts_bytes(&mut self, data: &[u8]) {
+        let mut stream = Vec::with_capacity(self.leftover.len() + data.len());
+        stream.extend_from_slice(&self.leftover);
+        stream.extend_from_slice(data);
+        self.leftover.clear();
+
+        let mut offset = 0;
+        while offset + TS_PACKET_SIZE <= stream.len() {
+            // Synchronize on TS Sync Byte (0x47)
+            if stream[offset] != TS_SYNC_BYTE {
+                offset += 1;
+                continue;
+            }
+
+            let packet = &stream[offset..offset + TS_PACKET_SIZE];
+            self.process_ts_packet(packet);
+            offset += TS_PACKET_SIZE;
+        }
+
+        if offset < stream.len() {
+            self.leftover.extend_from_slice(&stream[offset..]);
+        }
+    }
+
+    fn process_ts_packet(&mut self, packet: &[u8]) {
+        let pusi = (packet[1] & 0x40) != 0;
+        let pid = (((packet[1] & 0x1F) as u16) << 8) | (packet[2] as u16);
+        let adapt_ctrl = (packet[3] >> 4) & 0x03;
+
+        if pid == PID_VIDEO {
+            let mut payload_offset = 4;
+
+            // Handle adaptation field
+            if adapt_ctrl == 0b10 {
+                // Adaptation field only, no payload
+                return;
+            } else if adapt_ctrl == 0b11 {
+                // Adaptation field followed by payload
+                let adapt_len = packet[4] as usize;
+                payload_offset = 5 + adapt_len;
+                if payload_offset >= TS_PACKET_SIZE {
+                    return;
+                }
+            } else if adapt_ctrl == 0b00 {
+                // Reserved
+                return;
+            }
+
+            let ts_payload = &packet[payload_offset..TS_PACKET_SIZE];
+
+            if pusi {
+                // Start of a new PES packet: finalize previous video frame
+                if !self.video_pes_buffer.is_empty() {
+                    if let Some(frame) = Self::extract_pes_payload(&self.video_pes_buffer) {
+                        self.completed_video_frames.push(frame);
+                    }
+                    self.video_pes_buffer.clear();
+                }
+            }
+
+            self.video_pes_buffer.extend_from_slice(ts_payload);
+        }
+    }
+
+    fn extract_pes_payload(pes: &[u8]) -> Option<Vec<u8>> {
+        if pes.len() < 9 {
+            return None;
+        }
+        if pes[0] != 0x00 || pes[1] != 0x00 || pes[2] != 0x01 {
+            return None;
+        }
+
+        let pes_packet_len = ((pes[4] as usize) << 8) | (pes[5] as usize);
+        let header_data_len = pes[8] as usize;
+        let payload_start = 9 + header_data_len;
+
+        if payload_start > pes.len() {
+            return None;
+        }
+
+        if pes_packet_len > 0 && pes_packet_len + 6 <= pes.len() {
+            Some(pes[payload_start..6 + pes_packet_len].to_vec())
+        } else {
+            Some(pes[payload_start..].to_vec())
+        }
+    }
+
+    /// Retrieves the next available decoded video frame payload.
+    pub fn next_video_frame(&mut self) -> Option<Vec<u8>> {
+        if !self.completed_video_frames.is_empty() {
+            Some(self.completed_video_frames.remove(0))
+        } else {
+            None
+        }
+    }
+
+    /// Flushes any pending video PES packet currently in the buffer.
+    pub fn flush(&mut self) {
+        if !self.video_pes_buffer.is_empty() {
+            if let Some(frame) = Self::extract_pes_payload(&self.video_pes_buffer) {
+                self.completed_video_frames.push(frame);
+            }
+            self.video_pes_buffer.clear();
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -339,4 +472,30 @@ mod tests {
             assert_eq!(chunk[0], TS_SYNC_BYTE);
         }
     }
+
+    #[test]
+    fn test_muxer_demuxer_roundtrip() {
+        let mut muxer = MpegTsMuxer::new();
+        let mut demuxer = MpegTsDemuxer::new();
+
+        let original_frame_1 = vec![0xAA; 4096];
+        let original_frame_2 = vec![0xBB; 8192];
+
+        let p1 = MediaPacket::new_video(90_000, 90_000, original_frame_1.clone(), true);
+        let p2 = MediaPacket::new_video(91_500, 91_500, original_frame_2.clone(), false);
+
+        let ts1 = muxer.mux_packet(&p1);
+        let ts2 = muxer.mux_packet(&p2);
+
+        demuxer.feed_ts_bytes(&ts1);
+        demuxer.feed_ts_bytes(&ts2);
+        demuxer.flush();
+
+        let frame1 = demuxer.next_video_frame().expect("Frame 1 missing");
+        let frame2 = demuxer.next_video_frame().expect("Frame 2 missing");
+
+        assert_eq!(frame1, original_frame_1);
+        assert_eq!(frame2, original_frame_2);
+    }
 }
+

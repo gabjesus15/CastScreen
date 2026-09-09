@@ -11,3 +11,5 @@ windows.workspace = true
 crossbeam-channel.workspace = true
 thiserror.workspace = true
 tracing.workspace = true
+image = { workspace = true }
+

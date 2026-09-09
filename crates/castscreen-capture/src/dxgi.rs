@@ -7,6 +7,7 @@ use thiserror::Error;
 use windows::core::Interface;
 use windows::Win32::Graphics::Direct3D::*;
 use windows::Win32::Graphics::Direct3D11::*;
+use windows::Win32::Graphics::Dxgi::Common::*;
 use windows::Win32::Graphics::Dxgi::*;
 
 #[derive(Error, Debug)]
@@ -40,6 +41,7 @@ pub struct DxgiScreenCapture {
     pub device: ID3D11Device,
     pub context: ID3D11DeviceContext,
     duplication: IDXGIOutputDuplication,
+    staging_texture: Option<ID3D11Texture2D>,
 }
 
 impl DxgiScreenCapture {
@@ -133,6 +135,7 @@ impl DxgiScreenCapture {
                 device,
                 context,
                 duplication,
+                staging_texture: None,
             })
         }
     }
@@ -166,6 +169,93 @@ impl DxgiScreenCapture {
             let texture: ID3D11Texture2D = resource.cast()?;
 
             Ok(texture)
+        }
+    }
+
+    /// Acquires the next frame, copies pixels to CPU via a staging texture,
+    /// and formats the output into RGBA format (ideal for compression).
+    pub fn acquire_frame_rgba(
+        &mut self,
+        timeout_ms: u32,
+        out_rgba: &mut Vec<u8>,
+    ) -> Result<(u32, u32), DxgiCaptureError> {
+        unsafe {
+            let mut frame_info = DXGI_OUTDUPL_FRAME_INFO::default();
+            let mut resource = None;
+
+            let hr = self
+                .duplication
+                .AcquireNextFrame(timeout_ms, &mut frame_info, &mut resource);
+
+            if let Err(e) = hr {
+                if e.code() == DXGI_ERROR_WAIT_TIMEOUT {
+                    return Err(DxgiCaptureError::Timeout);
+                } else if e.code() == DXGI_ERROR_ACCESS_LOST {
+                    return Err(DxgiCaptureError::AccessLost);
+                } else {
+                    return Err(DxgiCaptureError::Dxgi(e));
+                }
+            }
+
+            let resource = resource.ok_or(DxgiCaptureError::DeviceCreationFailed)?;
+            let texture: ID3D11Texture2D = resource.cast()?;
+
+            // Lazily create staging texture if not already allocated
+            if self.staging_texture.is_none() {
+                let staging_desc = D3D11_TEXTURE2D_DESC {
+                    Width: self.width,
+                    Height: self.height,
+                    MipLevels: 1,
+                    ArraySize: 1,
+                    Format: DXGI_FORMAT_B8G8R8A8_UNORM,
+                    SampleDesc: DXGI_SAMPLE_DESC {
+                        Count: 1,
+                        Quality: 0,
+                    },
+                    Usage: D3D11_USAGE_STAGING,
+                    BindFlags: 0,
+                    CPUAccessFlags: D3D11_CPU_ACCESS_READ.0 as u32,
+                    MiscFlags: 0,
+                };
+                let mut staging = None;
+                self.device
+                    .CreateTexture2D(&staging_desc, None, Some(&mut staging))?;
+                self.staging_texture = staging;
+            }
+
+            if let Some(staging) = &self.staging_texture {
+                self.context.CopyResource(staging, &texture);
+
+                let mut mapped = D3D11_MAPPED_SUBRESOURCE::default();
+                self.context
+                    .Map(staging, 0, D3D11_MAP_READ, 0, Some(&mut mapped))?;
+
+                let row_pitch = mapped.RowPitch as usize;
+                let row_bytes = (self.width * 4) as usize;
+                let total_bytes = (self.width * self.height * 4) as usize;
+
+                if out_rgba.len() != total_bytes {
+                    out_rgba.resize(total_bytes, 0);
+                }
+
+                let src_ptr = mapped.pData as *const u8;
+                for y in 0..self.height as usize {
+                    let src_row = std::slice::from_raw_parts(src_ptr.add(y * row_pitch), row_bytes);
+                    let dst_start = y * row_bytes;
+                    out_rgba[dst_start..dst_start + row_bytes].copy_from_slice(src_row);
+                }
+
+                self.context.Unmap(staging, 0);
+
+                // Convert BGRA to RGBA in-place: swap B and R, set A to 255
+                for pixel in out_rgba.chunks_exact_mut(4) {
+                    pixel.swap(0, 2);
+                    pixel[3] = 255;
+                }
+            }
+
+            self.duplication.ReleaseFrame()?;
+            Ok((self.width, self.height))
         }
     }
 

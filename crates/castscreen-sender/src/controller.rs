@@ -157,16 +157,16 @@ impl StreamController {
                 };
 
                 let frame_interval = Duration::from_micros(1_000_000 / video_config.fps as u64);
+                let mut raw_frame = Vec::new();
 
                 while is_running_video.load(Ordering::Relaxed) {
                     let loop_start = std::time::Instant::now();
 
-                    if let Ok(texture) = dxgi.acquire_frame_texture(10) {
+                    if let Ok((width, height)) = dxgi.acquire_frame_rgba(10, &mut raw_frame) {
                         let pts = clock_video.current_pts_90khz();
-                        if let Ok(video_packet) = nvenc.encode_frame(&texture, pts) {
+                        if let Ok(video_packet) = nvenc.encode_rgba_frame(&raw_frame, width, height, pts) {
                             let _ = media_tx_video.try_send(video_packet);
                         }
-                        let _ = dxgi.release_frame();
                     }
 
                     // Precise frame pacing to exact 60.0 FPS
