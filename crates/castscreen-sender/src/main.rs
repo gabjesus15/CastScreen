@@ -35,6 +35,7 @@ fn main() -> Result<()> {
 
     let native_options = eframe::NativeOptions {
         viewport: eframe::egui::ViewportBuilder::default()
+            .with_maximized(true)
             .with_inner_size([940.0, 640.0])
             .with_min_inner_size([880.0, 580.0])
             .with_icon(castscreen_core::theme::load_window_icon())
@@ -45,7 +46,12 @@ fn main() -> Result<()> {
     eframe::run_native(
         &title,
         native_options,
-        Box::new(|_cc| Ok(Box::new(SenderGuiApp::new(controller)))),
+        Box::new(|cc| {
+            // Fonts take effect on the next frame, so the design system is
+            // installed before the first one runs.
+            castscreen_core::configure_dark_studio_theme(&cc.egui_ctx);
+            Ok(Box::new(SenderGuiApp::new(controller)))
+        }),
     )
     .map_err(|e| anyhow::anyhow!("Eframe error: {}", e))
 }

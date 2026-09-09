@@ -1,20 +1,24 @@
 //! Core types, synchronization clocks, configurations, and mathematical routines
 //! for the CastScreen streaming pipeline.
 
+pub mod app_launch;
 pub mod audio_math;
 pub mod clock;
 pub mod config;
 pub mod single_instance;
 pub mod theme;
 pub mod tray;
+pub mod update_sheet;
 pub mod updater;
 
+pub use app_launch::{launch_launcher, launch_receiver, launch_sender};
 pub use audio_math::{AudioSubmixer, VuMeterLevel};
 pub use clock::QpcClock;
 pub use config::{AudioConfig, CastScreenConfig, MixerConfig, NetworkConfig, StreamProfile, VideoConfig};
 pub use single_instance::SingleInstanceGuard;
 pub use theme::*;
 pub use tray::TrayNotifier;
+pub use update_sheet::{update_chip, update_sheet};
 pub use updater::{AppUpdater, AutoUpdater, UpdateState, UpdateStatus, CURRENT_VERSION};
 
 /// Type of media packet flowing through the pipeline.
