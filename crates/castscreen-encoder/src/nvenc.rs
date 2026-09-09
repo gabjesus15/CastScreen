@@ -85,15 +85,16 @@ impl NvencEncoder {
         in_type.SetUINT32(&MF_MT_INTERLACE_MODE, MFVideoInterlace_Progressive.0 as u32)?;
         encoder.SetInputType(0, &in_type, 0)?;
 
-        // Setup Low Latency via ICodecAPI
-        let codec_api: ICodecAPI = encoder.cast()?;
-        let low_latency = VARIANT::from(true);
-        codec_api.SetValue(&CODECAPI_AVEncCommonLowLatency, &low_latency)?;
+        // Setup Low Latency via ICodecAPI (Ignoramos el error si el MFT no lo soporta)
+        if let Ok(codec_api) = encoder.cast::<ICodecAPI>() {
+            let low_latency = VARIANT::from(true);
+            let _ = codec_api.SetValue(&CODECAPI_AVEncCommonLowLatency, &low_latency);
+        }
 
-        // Start Streaming
-        encoder.ProcessMessage(MFT_MESSAGE_COMMAND_FLUSH, 0)?;
-        encoder.ProcessMessage(MFT_MESSAGE_NOTIFY_BEGIN_STREAMING, 0)?;
-        encoder.ProcessMessage(MFT_MESSAGE_NOTIFY_START_OF_STREAM, 0)?;
+        // Start Streaming (Es normal y esperado que devuelvan E_NOTIMPL, no usamos `?`)
+        let _ = encoder.ProcessMessage(MFT_MESSAGE_COMMAND_FLUSH, 0);
+        let _ = encoder.ProcessMessage(MFT_MESSAGE_NOTIFY_BEGIN_STREAMING, 0);
+        let _ = encoder.ProcessMessage(MFT_MESSAGE_NOTIFY_START_OF_STREAM, 0);
 
         Ok(encoder)
     }
