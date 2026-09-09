@@ -7,7 +7,7 @@ use crate::audio_out::AudioOutput;
 use castscreen_core::{
     configure_dark_studio_theme, draw_ballistic_vu_meter, draw_castscreen_logo, draw_live_badge,
     AudioSubmixer, ACCENT_BRAND, ACCENT_LIVE, BG_CANVAS, BG_CONTROL, BG_PANEL, BORDER_SUBTLE,
-    TEXT_MUTED, TEXT_PRIMARY, TEXT_SECONDARY,
+    TEXT_MUTED, TEXT_PRIMARY, TEXT_SECONDARY, CURRENT_VERSION,
 };
 use castscreen_network::{DiscoveryResponder, MpegTsDemuxer, ReceiverStats, SrtReceiver};
 use eframe::egui::{self, Color32, Layout, Rect, RichText, Rounding, Stroke, Vec2};
@@ -173,6 +173,11 @@ impl eframe::App for ReceiverGuiApp {
                                 .strong()
                                 .color(ACCENT_BRAND)
                                 .size(16.0),
+                        );
+                        ui.label(
+                            RichText::new(format!("v{}", CURRENT_VERSION))
+                                .color(TEXT_MUTED)
+                                .size(12.0),
                         );
 
                         ui.add_space(16.0);

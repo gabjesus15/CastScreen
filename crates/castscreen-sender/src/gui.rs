@@ -12,7 +12,7 @@ use castscreen_core::{
     configure_dark_studio_theme, draw_ballistic_vu_meter, draw_buffer_health_bar,
     draw_castscreen_logo, draw_live_badge, AppUpdater, TrayNotifier, UpdateState, ACCENT_BRAND,
     ACCENT_DANGER, ACCENT_LIVE, ACCENT_WARN, BG_CONTROL, BG_HOVER, BG_PANEL, BORDER_SUBTLE,
-    TEXT_MUTED, TEXT_PRIMARY, TEXT_SECONDARY,
+    TEXT_MUTED, TEXT_PRIMARY, TEXT_SECONDARY, CURRENT_VERSION,
 };
 use castscreen_network::DiscoveryScanner;
 use eframe::egui::{self, Color32, Layout, RichText, Rounding, Stroke, Vec2};
@@ -98,6 +98,11 @@ impl eframe::App for SenderGuiApp {
                             .color(ACCENT_BRAND)
                             .size(17.0),
                     );
+                    ui.label(
+                        RichText::new(format!("v{}", CURRENT_VERSION))
+                            .color(TEXT_MUTED)
+                            .size(12.0),
+                    );
 
                     ui.add_space(16.0);
                     draw_live_badge(ui, snapshot.is_streaming, elapsed_secs);
@@ -157,6 +162,14 @@ impl eframe::App for SenderGuiApp {
                             {
                                 self.show_update_modal = true;
                             }
+                        }
+                        UpdateState::UpToDate => {
+                            ui.add_space(12.0);
+                            ui.label(
+                                RichText::new("✓ Al día")
+                                    .color(ACCENT_LIVE)
+                                    .size(11.0),
+                            );
                         }
                         _ => {}
                     }
@@ -427,6 +440,55 @@ impl eframe::App for SenderGuiApp {
                         ui.add_space(8.0);
                         ui.separator();
                         ui.add_space(8.0);
+
+                        // ── Pipeline Error Banner ──────────────────────────────────────────
+                        if let Some(ref err) = snapshot.pipeline_error {
+                            egui::Frame::none()
+                                .fill(Color32::from_rgb(80, 20, 20))
+                                .stroke(Stroke::new(1.5_f32, ACCENT_DANGER))
+                                .rounding(Rounding::same(6.0))
+                                .inner_margin(10.0)
+                                .show(ui, |ui| {
+                                    ui.horizontal(|ui| {
+                                        ui.label(
+                                            RichText::new("⛔ ERROR DE PIPELINE")
+                                                .strong()
+                                                .color(ACCENT_DANGER)
+                                                .size(12.0),
+                                        );
+                                        ui.label(
+                                            RichText::new(err.as_str())
+                                                .color(Color32::from_rgb(255, 160, 160))
+                                                .size(11.0),
+                                        );
+                                    });
+                                });
+                            ui.add_space(6.0);
+                        }
+
+                        // ── TCP Connection Status Chip ─────────────────────────────────────
+                        if snapshot.is_streaming {
+                            let (chip_color, chip_text) = if snapshot.network_connected {
+                                (ACCENT_LIVE, format!("✅ CONECTADO  →  {}:{}", self.target_ip, self.target_port))
+                            } else {
+                                (ACCENT_WARN, format!("⏳ Conectando a {}:{}…", self.target_ip, self.target_port))
+                            };
+                            egui::Frame::none()
+                                .fill(BG_CONTROL)
+                                .stroke(Stroke::new(1.5_f32, chip_color))
+                                .rounding(Rounding::same(6.0))
+                                .inner_margin(8.0)
+                                .show(ui, |ui| {
+                                    ui.label(
+                                        RichText::new(&chip_text)
+                                            .monospace()
+                                            .strong()
+                                            .color(chip_color)
+                                            .size(12.0),
+                                    );
+                                });
+                            ui.add_space(6.0);
+                        }
 
                         // Auto-Discovery Section: Laptop Receivers on LAN
                         ui.horizontal(|ui| {

@@ -29,6 +29,10 @@ pub struct SenderStateSnapshot {
     pub detected_apps: Vec<AudioAppSession>,
     pub detected_monitors: Vec<MonitorInfo>,
     pub selected_monitor: u32,
+    /// Set when DXGI or NVENC fail to initialize; shown as an error banner in the GUI.
+    pub pipeline_error: Option<String>,
+    /// True while a live TCP connection to the receiver is established.
+    pub network_connected: bool,
 }
 
 pub struct StreamController {
@@ -124,11 +128,15 @@ impl StreamController {
                     if let Ok(packet) = media_rx.recv_timeout(Duration::from_millis(50)) {
                         let ts_bytes = muxer.mux_packet(&packet);
                         sender.send_ts_data(&ts_bytes);
+                    }
 
-                        let stats = sender.get_stats();
+                    // Update stats on every iteration so connection status is always fresh.
+                    let stats = sender.get_stats();
+                    {
                         let mut snap = snapshot_net.write();
                         snap.bitrate_mbps = stats.bitrate_mbps;
                         snap.total_bytes_sent = stats.total_bytes_sent;
+                        snap.network_connected = stats.connected;
                     }
                 }
             })?;
@@ -147,7 +155,9 @@ impl StreamController {
                 let mut dxgi = match DxgiScreenCapture::new(video_config.display_index) {
                     Ok(d) => d,
                     Err(e) => {
-                        tracing::error!("DXGI init failed: {:?}", e);
+                        let msg = format!("Error captura DXGI (DirectX): {:?}", e);
+                        tracing::error!("{}", msg);
+                        snapshot_video.write().pipeline_error = Some(msg);
                         return;
                     }
                 };
@@ -155,7 +165,9 @@ impl StreamController {
                 let mut nvenc = match NvencEncoder::new(video_config.clone()) {
                     Ok(n) => n,
                     Err(e) => {
-                        tracing::error!("NVENC init failed: {:?}", e);
+                        let msg = format!("Error encoder NVENC: {:?}", e);
+                        tracing::error!("{}", msg);
+                        snapshot_video.write().pipeline_error = Some(msg);
                         return;
                     }
                 };
@@ -221,6 +233,8 @@ impl StreamController {
         snap.is_streaming = false;
         snap.bitrate_mbps = 0.0;
         snap.current_fps = 0.0;
+        snap.network_connected = false;
+        snap.pipeline_error = None;
         tracing::info!("CastScreen streaming pipeline stopped");
     }
 

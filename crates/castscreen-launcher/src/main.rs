@@ -47,7 +47,7 @@ fn main() -> Result<()> {
             .with_inner_size([660.0, 460.0])
             .with_min_inner_size([640.0, 440.0])
             .with_resizable(false)
-            .with_title("CastScreen Launcher"),
+            .with_title(format!("CastScreen Launcher v{}", VERSION)),
         ..Default::default()
     };
 
@@ -178,6 +178,12 @@ impl eframe::App for LauncherApp {
                     }
                     UpdateState::Checking => {
                         ui.label(RichText::new("🔄 Buscando actualizaciones...").color(TEXT_MUTED).size(11.0));
+                    }
+                    UpdateState::UpToDate => {
+                        ui.label(RichText::new("✓ Versión al día").color(ACCENT_LIVE).size(11.0));
+                    }
+                    UpdateState::Error(_) => {
+                        ui.label(RichText::new("⚠️ Error comprobando versión").color(TEXT_MUTED).size(11.0));
                     }
                     _ => {}
                 }

@@ -27,3 +27,7 @@ Cargo.lock
 # CastScreen local configs & builds
 *.local.toml
 /dist/
+
+# Temporary scripts
+*.cmd
+git_output.txt

@@ -9,7 +9,7 @@ mod controller;
 mod gui;
 
 use anyhow::Result;
-use castscreen_core::{CastScreenConfig, SingleInstanceGuard};
+use castscreen_core::{CastScreenConfig, SingleInstanceGuard, CURRENT_VERSION};
 use controller::StreamController;
 use gui::SenderGuiApp;
 
@@ -31,16 +31,18 @@ fn main() -> Result<()> {
 
     let controller = StreamController::new(config);
 
+    let title = format!("CastScreen Studio v{} (Emisor PC Gaming)", CURRENT_VERSION);
+
     let native_options = eframe::NativeOptions {
         viewport: eframe::egui::ViewportBuilder::default()
             .with_inner_size([940.0, 640.0])
             .with_min_inner_size([880.0, 580.0])
-            .with_title("CastScreen Studio (Emisor PC Gaming)"),
+            .with_title(&title),
         ..Default::default()
     };
 
     eframe::run_native(
-        "CastScreen Studio (Emisor PC Gaming)",
+        &title,
         native_options,
         Box::new(|_cc| Ok(Box::new(SenderGuiApp::new(controller)))),
     )

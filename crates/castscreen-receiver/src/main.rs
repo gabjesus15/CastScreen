@@ -9,7 +9,7 @@ mod audio_out;
 mod hud;
 
 use anyhow::Result;
-use castscreen_core::{NetworkConfig, SingleInstanceGuard};
+use castscreen_core::{NetworkConfig, SingleInstanceGuard, CURRENT_VERSION};
 use castscreen_network::SrtReceiver;
 use hud::ReceiverGuiApp;
 
@@ -32,17 +32,19 @@ fn main() -> Result<()> {
 
     let receiver = SrtReceiver::new(net_config)?;
 
+    let title = format!("CastScreen Receiver v{} (Live Preview 60 FPS)", CURRENT_VERSION);
+
     let native_options = eframe::NativeOptions {
         vsync: true,
         viewport: eframe::egui::ViewportBuilder::default()
             .with_inner_size([1080.0, 720.0])
             .with_min_inner_size([800.0, 500.0])
-            .with_title("CastScreen Receiver (Live Preview 60 FPS)"),
+            .with_title(&title),
         ..Default::default()
     };
 
     eframe::run_native(
-        "CastScreen Receiver",
+        &title,
         native_options,
         Box::new(|_cc| Ok(Box::new(ReceiverGuiApp::new(receiver)))),
     )
