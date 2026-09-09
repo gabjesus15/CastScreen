@@ -111,14 +111,10 @@ impl StreamController {
             .name("ts-srt-sender".to_string())
             .spawn(move || {
                 let mut muxer = MpegTsMuxer::new();
-                // The sender only transmits, so it binds an ephemeral local port.
-                // Binding the fixed 9000 here collides with a receiver running on the
-                // same machine (the 127.0.0.1 loopback test the README describes).
-                let mut sender_config = net_config;
-                sender_config.host = "0.0.0.0".to_string();
-                sender_config.port = 0;
-                let mut sender =
-                    SrtSender::new(sender_config).expect("SRT sender socket bind failed");
+                // The sender is a TCP client: it connects to the receiver, so it
+                // binds no local port and cannot collide with a receiver running
+                // on the same machine (the 127.0.0.1 loopback test).
+                let mut sender = SrtSender::new(net_config).expect("Stream sender init failed");
 
                 if let Some(target) = target_ip {
                     sender.set_target(target);

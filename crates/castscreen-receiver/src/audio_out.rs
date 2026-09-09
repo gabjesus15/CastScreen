@@ -166,14 +166,14 @@ unsafe fn render_loop(
         {
             let mut q = queue.lock();
 
-            // Prime interpolation endpoints once enough data exists.
-            if !primed {
-                if q.len() >= 4 {
-                    cur = (pop_or_zero(&mut q), pop_or_zero(&mut q));
-                    nxt = (pop_or_zero(&mut q), pop_or_zero(&mut q));
-                    primed = true;
-                    frac = 0.0;
-                }
+            // Prime once a small cushion (~10 ms) exists, so playback doesn't
+            // start and immediately underrun on the first arriving samples.
+            const PRIME_SAMPLES: usize = 960; // 10 ms stereo @ 48 kHz
+            if !primed && q.len() >= PRIME_SAMPLES {
+                cur = (pop_or_zero(&mut q), pop_or_zero(&mut q));
+                nxt = (pop_or_zero(&mut q), pop_or_zero(&mut q));
+                primed = true;
+                frac = 0.0;
             }
 
             for frame_idx in 0..available as usize {

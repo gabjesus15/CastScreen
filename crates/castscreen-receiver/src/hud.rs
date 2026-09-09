@@ -36,7 +36,6 @@ pub struct ReceiverGuiApp {
     stats: ReceiverStats,
     left_vu: f32,
     right_vu: f32,
-    last_packet_time: Option<Instant>,
     buffer_drain: Vec<u8>,
     // Real decoded-frame rate measured over a rolling 1-second window.
     frames_in_window: u32,
@@ -67,7 +66,6 @@ impl ReceiverGuiApp {
             stats: ReceiverStats::default(),
             left_vu: 0.0,
             right_vu: 0.0,
-            last_packet_time: None,
             buffer_drain: Vec::with_capacity(32768),
             frames_in_window: 0,
             fps_window_start: Instant::now(),
@@ -91,18 +89,12 @@ impl eframe::App for ReceiverGuiApp {
 
         if bytes_read > 0 {
             self.demuxer.feed_ts_bytes(&self.buffer_drain);
-            self.is_connected = true;
-            self.last_packet_time = Some(Instant::now());
-        } else if self.stats.received_mbps > 0.05 {
-            self.is_connected = true;
-        } else if let Some(last) = self.last_packet_time {
-            if last.elapsed().as_secs() >= 3 {
-                self.is_connected = false;
-                self.left_vu = 0.0;
-                self.right_vu = 0.0;
-            }
-        } else {
-            self.is_connected = false;
+        }
+
+        // Connection state comes straight from the TCP link, not from guessing at
+        // byte flow (a static screen with silent audio sends almost nothing).
+        self.is_connected = self.stats.connected;
+        if !self.is_connected {
             self.left_vu = 0.0;
             self.right_vu = 0.0;
         }

@@ -1,16 +1,21 @@
-//! SRT / UDP Stream Receiver for the Laptop.
+//! Reliable LAN stream receiver (TCP transport).
 //!
-//! Reassembles 1316-byte network datagrams into continuous 188-byte MPEG-TS packets,
-//! manages a configurable jitter buffer, and measures incoming bitrate and packet continuity.
+//! Listens for the sender's TCP connection and reads the MPEG-TS byte stream.
+//! Because TCP guarantees ordered, loss-free delivery, the demuxer never sees
+//! gaps or corruption from Wi-Fi packet loss — the cause of the tearing and
+//! audio drops seen with UDP-based tools. Reads are non-blocking so the egui
+//! render loop that polls this receiver is never stalled.
 
-use crate::srt_sender::DATAGRAM_SIZE;
 use castscreen_core::NetworkConfig;
 use parking_lot::RwLock;
-use std::net::UdpSocket;
+use std::io::{ErrorKind, Read};
+use std::net::{TcpListener, TcpStream};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::Instant;
 use thiserror::Error;
+
+const RECV_CHUNK: usize = 65536;
 
 #[derive(Error, Debug)]
 pub enum ReceiverError {
@@ -24,12 +29,15 @@ pub struct ReceiverStats {
     pub total_bytes_received: u64,
     pub total_packets_received: u64,
     pub buffer_ms: u32,
+    /// True while a sender is connected over TCP.
+    pub connected: bool,
 }
 
 pub struct SrtReceiver {
     config: NetworkConfig,
-    socket: UdpSocket,
-    recv_buffer: [u8; DATAGRAM_SIZE * 2],
+    listener: TcpListener,
+    stream: Option<TcpStream>,
+    recv_buffer: Vec<u8>,
     bytes_window: Arc<AtomicU64>,
     total_bytes: Arc<AtomicU64>,
     total_packets: Arc<AtomicU64>,
@@ -42,22 +50,16 @@ pub struct SrtReceiver {
 impl SrtReceiver {
     pub fn new(config: NetworkConfig) -> Result<Self, ReceiverError> {
         let bind_addr = format!("{}:{}", config.host, config.port);
-        let socket = UdpSocket::bind(&bind_addr)?;
-        socket.set_nonblocking(true)?;
+        let listener = TcpListener::bind(&bind_addr)?;
+        listener.set_nonblocking(true)?;
 
-        // Generous receive buffer (8MB) to absorb network bursts
-        let _ = socket.set_read_timeout(Some(std::time::Duration::from_millis(20)));
-
-        tracing::info!(
-            "Network receiver listening on {} with {}ms jitter buffer",
-            bind_addr,
-            config.srt_latency_ms
-        );
+        tracing::info!("TCP stream receiver listening on {}", bind_addr);
 
         Ok(Self {
             config,
-            socket,
-            recv_buffer: [0u8; DATAGRAM_SIZE * 2],
+            listener,
+            stream: None,
+            recv_buffer: vec![0u8; RECV_CHUNK],
             bytes_window: Arc::new(AtomicU64::new(0)),
             total_bytes: Arc::new(AtomicU64::new(0)),
             total_packets: Arc::new(AtomicU64::new(0)),
@@ -67,19 +69,48 @@ impl SrtReceiver {
         })
     }
 
-    /// Polls the network socket for incoming TS packets.
-    /// Returns the number of bytes read into `destination`.
+    /// Polls for incoming stream bytes. Non-blocking: returns however many bytes
+    /// were available this call (0 if none / not connected).
     pub fn receive_ts_chunk(&mut self, destination: &mut Vec<u8>) -> usize {
+        // Accept a new connection if we don't have one.
+        if self.stream.is_none() {
+            match self.listener.accept() {
+                Ok((stream, peer)) => {
+                    let _ = stream.set_nonblocking(true);
+                    tracing::info!("Sender connected from {}", peer);
+                    self.stream = Some(stream);
+                }
+                Err(ref e) if e.kind() == ErrorKind::WouldBlock => {}
+                Err(e) => tracing::debug!("Accept error: {}", e),
+            }
+        }
+
         let mut total_read = 0;
 
-        while let Ok((bytes_read, _src_addr)) = self.socket.recv_from(&mut self.recv_buffer) {
-            if bytes_read > 0 {
-                destination.extend_from_slice(&self.recv_buffer[..bytes_read]);
-                total_read += bytes_read;
-
-                self.bytes_window.fetch_add(bytes_read as u64, Ordering::Relaxed);
-                self.total_bytes.fetch_add(bytes_read as u64, Ordering::Relaxed);
-                self.total_packets.fetch_add(1, Ordering::Relaxed);
+        if let Some(stream) = self.stream.as_mut() {
+            loop {
+                match stream.read(&mut self.recv_buffer) {
+                    Ok(0) => {
+                        // Peer closed the connection cleanly.
+                        tracing::info!("Sender disconnected");
+                        self.stream = None;
+                        break;
+                    }
+                    Ok(n) => {
+                        destination.extend_from_slice(&self.recv_buffer[..n]);
+                        total_read += n;
+                        self.bytes_window.fetch_add(n as u64, Ordering::Relaxed);
+                        self.total_bytes.fetch_add(n as u64, Ordering::Relaxed);
+                        self.total_packets
+                            .fetch_add((n / 188).max(1) as u64, Ordering::Relaxed);
+                    }
+                    Err(ref e) if e.kind() == ErrorKind::WouldBlock => break,
+                    Err(e) => {
+                        tracing::warn!("Read error, dropping connection: {}", e);
+                        self.stream = None;
+                        break;
+                    }
+                }
             }
         }
 
@@ -98,6 +129,7 @@ impl SrtReceiver {
             stats.total_bytes_received = self.total_bytes.load(Ordering::Relaxed);
             stats.total_packets_received = self.total_packets.load(Ordering::Relaxed);
             stats.buffer_ms = self.config.srt_latency_ms;
+            stats.connected = self.stream.is_some();
 
             self.last_stats_tick = Instant::now();
         }
