@@ -3,19 +3,31 @@
 //! Provides the 60 FPS hardware-accelerated preview window, audio master monitor,
 //! and clean window mode for pixel-perfect capture in TikTok Live Studio and OBS Studio.
 
+use crate::audio_out::AudioOutput;
 use castscreen_core::{
     configure_dark_studio_theme, draw_ballistic_vu_meter, draw_castscreen_logo, draw_live_badge,
-    ACCENT_BRAND, ACCENT_LIVE, BG_CANVAS, BG_CONTROL, BG_PANEL, BORDER_SUBTLE, TEXT_MUTED,
-    TEXT_PRIMARY, TEXT_SECONDARY,
+    AudioSubmixer, ACCENT_BRAND, ACCENT_LIVE, BG_CANVAS, BG_CONTROL, BG_PANEL, BORDER_SUBTLE,
+    TEXT_MUTED, TEXT_PRIMARY, TEXT_SECONDARY,
 };
 use castscreen_network::{DiscoveryResponder, MpegTsDemuxer, ReceiverStats, SrtReceiver};
 use eframe::egui::{self, Color32, Layout, Rect, RichText, Rounding, Stroke, Vec2};
 use std::time::Instant;
 
+/// Decodes an interleaved i16 LE PCM payload into f32 samples in [-1.0, 1.0].
+fn decode_pcm_i16(payload: &[u8]) -> Vec<f32> {
+    let mut out = Vec::with_capacity(payload.len() / 2);
+    for chunk in payload.chunks_exact(2) {
+        let s = i16::from_le_bytes([chunk[0], chunk[1]]);
+        out.push(s as f32 / 32768.0);
+    }
+    out
+}
+
 pub struct ReceiverGuiApp {
     receiver: SrtReceiver,
     _discovery_responder: DiscoveryResponder,
     demuxer: MpegTsDemuxer,
+    audio_out: AudioOutput,
     video_texture: Option<egui::TextureHandle>,
     frame_dimensions: Option<(usize, usize)>,
     is_connected: bool,
@@ -26,6 +38,10 @@ pub struct ReceiverGuiApp {
     right_vu: f32,
     last_packet_time: Option<Instant>,
     buffer_drain: Vec<u8>,
+    // Real decoded-frame rate measured over a rolling 1-second window.
+    frames_in_window: u32,
+    fps_window_start: Instant,
+    current_fps: f32,
 }
 
 impl ReceiverGuiApp {
@@ -35,10 +51,14 @@ impl ReceiverGuiApp {
             .unwrap_or_else(|_| "Laptop-Stream".to_string());
         let discovery_responder = DiscoveryResponder::start(device_name, 9000);
 
+        let audio_out = AudioOutput::start();
+        audio_out.set_volume(0.85);
+
         Self {
             receiver,
             _discovery_responder: discovery_responder,
             demuxer: MpegTsDemuxer::new(),
+            audio_out,
             video_texture: None,
             frame_dimensions: None,
             is_connected: false, // Disconnected until incoming packets arrive
@@ -49,6 +69,9 @@ impl ReceiverGuiApp {
             right_vu: 0.0,
             last_packet_time: None,
             buffer_drain: Vec::with_capacity(32768),
+            frames_in_window: 0,
+            fps_window_start: Instant::now(),
+            current_fps: 0.0,
         }
     }
 }
@@ -62,13 +85,14 @@ impl eframe::App for ReceiverGuiApp {
         let bytes_read = self.receiver.receive_ts_chunk(&mut self.buffer_drain);
         self.stats = self.receiver.get_stats();
 
+        // Ballistic decay of the VU meters each UI frame; real peaks lift them below.
+        self.left_vu *= 0.85;
+        self.right_vu *= 0.85;
+
         if bytes_read > 0 {
             self.demuxer.feed_ts_bytes(&self.buffer_drain);
             self.is_connected = true;
             self.last_packet_time = Some(Instant::now());
-            let time = ctx.input(|i| i.time) as f32;
-            self.left_vu = (0.55 + 0.25 * (time * 6.0).sin()).clamp(0.0, 1.0);
-            self.right_vu = (0.52 + 0.25 * (time * 6.2 + 0.4).sin()).clamp(0.0, 1.0);
         } else if self.stats.received_mbps > 0.05 {
             self.is_connected = true;
         } else if let Some(last) = self.last_packet_time {
@@ -81,6 +105,19 @@ impl eframe::App for ReceiverGuiApp {
             self.is_connected = false;
             self.left_vu = 0.0;
             self.right_vu = 0.0;
+        }
+
+        // 0.05 Play any ready audio frames and drive the VU meters from real levels.
+        self.audio_out.set_volume(self.master_volume);
+        while let Some(audio_bytes) = self.demuxer.next_audio_frame() {
+            let pcm = decode_pcm_i16(&audio_bytes);
+            if pcm.is_empty() {
+                continue;
+            }
+            let vu = AudioSubmixer::calculate_vu_meter(&pcm);
+            self.left_vu = self.left_vu.max(vu.left_peak);
+            self.right_vu = self.right_vu.max(vu.right_peak);
+            self.audio_out.push_samples(&pcm);
         }
 
         // 0.1 Decode any ready video frames from demuxer into the GPU texture
@@ -101,7 +138,19 @@ impl eframe::App for ReceiverGuiApp {
                     ));
                 }
                 self.frame_dimensions = Some((width, height));
+                self.frames_in_window += 1;
             }
+        }
+
+        // Real measured display frame rate over a rolling 1-second window.
+        let win = self.fps_window_start.elapsed().as_secs_f32();
+        if win >= 1.0 {
+            self.current_fps = self.frames_in_window as f32 / win;
+            self.frames_in_window = 0;
+            self.fps_window_start = Instant::now();
+        }
+        if !self.is_connected {
+            self.current_fps = 0.0;
         }
 
         // Keep 60 FPS continuous repaint while connected
@@ -205,13 +254,20 @@ impl eframe::App for ReceiverGuiApp {
                                 .size(11.0),
                         );
 
-                        // Right Section: Telemetry Chips
+                        // Right Section: Telemetry Chips (real measured values)
                         ui.with_layout(Layout::right_to_left(egui::Align::Center), |ui| {
+                            let res_text = self
+                                .frame_dimensions
+                                .map(|(w, h)| format!("{}x{}", w, h))
+                                .unwrap_or_else(|| "—".to_string());
                             ui.label(
-                                RichText::new("Sync PTS: 0.2 ms  |  Búfer: 1.000 ms  |  1080p @ 60 FPS")
-                                    .monospace()
-                                    .color(ACCENT_LIVE)
-                                    .size(11.0),
+                                RichText::new(format!(
+                                    "Búfer: {} ms  |  {}  @ {:.0} FPS",
+                                    self.stats.buffer_ms, res_text, self.current_fps
+                                ))
+                                .monospace()
+                                .color(ACCENT_LIVE)
+                                .size(11.0),
                             );
                             ui.label(
                                 RichText::new(format!("{:.1} Mbps", self.stats.received_mbps))
@@ -274,7 +330,7 @@ impl eframe::App for ReceiverGuiApp {
                         painter.text(
                             badge_pos,
                             egui::Align2::RIGHT_TOP,
-                            format!("🟢 60.0 FPS · {:.1} Mbps", self.stats.received_mbps),
+                            format!("🟢 {:.0} FPS · {:.1} Mbps", self.current_fps, self.stats.received_mbps),
                             egui::FontId::proportional(11.0),
                             ACCENT_LIVE,
                         );

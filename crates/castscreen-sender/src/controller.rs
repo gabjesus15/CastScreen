@@ -111,7 +111,14 @@ impl StreamController {
             .name("ts-srt-sender".to_string())
             .spawn(move || {
                 let mut muxer = MpegTsMuxer::new();
-                let mut sender = SrtSender::new(net_config).expect("SRT sender socket bind failed");
+                // The sender only transmits, so it binds an ephemeral local port.
+                // Binding the fixed 9000 here collides with a receiver running on the
+                // same machine (the 127.0.0.1 loopback test the README describes).
+                let mut sender_config = net_config;
+                sender_config.host = "0.0.0.0".to_string();
+                sender_config.port = 0;
+                let mut sender =
+                    SrtSender::new(sender_config).expect("SRT sender socket bind failed");
 
                 if let Some(target) = target_ip {
                     sender.set_target(target);
@@ -136,6 +143,7 @@ impl StreamController {
         let video_config = self.config.video.clone();
         let clock_video = clock.clone();
         let media_tx_video = media_tx;
+        let snapshot_video = self.state_snapshot.clone();
 
         let video_handle = thread::Builder::new()
             .name("dxgi-nvenc".to_string())
@@ -159,22 +167,38 @@ impl StreamController {
                 let frame_interval = Duration::from_micros(1_000_000 / video_config.fps as u64);
                 let mut raw_frame = Vec::new();
 
+                // Real captured-FPS measurement over a rolling 1-second window.
+                let mut fps_window_start = std::time::Instant::now();
+                let mut frames_in_window: u32 = 0;
+
                 while is_running_video.load(Ordering::Relaxed) {
                     let loop_start = std::time::Instant::now();
 
+                    // acquire_frame_rgba returns Timeout when the desktop image is
+                    // unchanged; that is normal and simply means no new frame to send.
                     if let Ok((width, height)) = dxgi.acquire_frame_rgba(10, &mut raw_frame) {
                         let pts = clock_video.current_pts_90khz();
                         if let Ok(video_packet) = nvenc.encode_rgba_frame(&raw_frame, width, height, pts) {
                             let _ = media_tx_video.try_send(video_packet);
+                            frames_in_window += 1;
                         }
                     }
 
-                    // Precise frame pacing to exact 60.0 FPS
+                    let window_elapsed = fps_window_start.elapsed();
+                    if window_elapsed.as_secs_f32() >= 1.0 {
+                        let fps = frames_in_window as f32 / window_elapsed.as_secs_f32();
+                        snapshot_video.write().current_fps = fps;
+                        frames_in_window = 0;
+                        fps_window_start = std::time::Instant::now();
+                    }
+
+                    // Precise frame pacing to the configured capture rate.
                     let elapsed = loop_start.elapsed();
                     if elapsed < frame_interval {
                         thread::sleep(frame_interval - elapsed);
                     }
                 }
+                snapshot_video.write().current_fps = 0.0;
             })?;
         self.threads.push(video_handle);
 

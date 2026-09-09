@@ -556,15 +556,16 @@ impl eframe::App for SenderGuiApp {
 
                         // Capture Engine Details
                         ui.label(RichText::new("MOTOR DE CAPTURA & GPU").color(TEXT_MUTED).size(10.0));
-                        ui.label(RichText::new("• DirectX 11 Desktop Duplication (VRAM Zero-Copy)").size(11.0));
-                        ui.label(RichText::new("• NVIDIA NVENC H.264 P2 (Ultra-Low Overhead)").size(11.0));
-                        ui.label(RichText::new("• Audio WASAPI 48,000 Hz Stereo (32-bit Float)").size(11.0));
+                        ui.label(RichText::new("• DirectX 11 Desktop Duplication (VRAM → RGBA)").size(11.0));
+                        ui.label(RichText::new("• Codificador MJPEG en CPU (baja latencia)").size(11.0));
+                        ui.label(RichText::new("• Audio WASAPI 48,000 Hz Estéreo → PCM 16-bit").size(11.0));
 
                         ui.add_space(14.0);
                         ui.label(RichText::new("MÉTRICAS DE TRANSMISIÓN EN VIVO").color(TEXT_MUTED).size(10.0));
 
-                        let fps_display = if snapshot.is_streaming { 60.0 } else { 0.0 };
-                        let bitrate_display = if snapshot.is_streaming { 24.8 } else { 0.0 };
+                        // Real measured values from the running pipeline.
+                        let fps_display = snapshot.current_fps;
+                        let bitrate_display = snapshot.bitrate_mbps;
 
                         ui.horizontal(|ui| {
                             ui.label(RichText::new("FPS de Captura:").color(TEXT_SECONDARY).size(12.0));
@@ -588,14 +589,35 @@ impl eframe::App for SenderGuiApp {
                             );
                         });
 
+                        ui.horizontal(|ui| {
+                            ui.label(RichText::new("Datos enviados:").color(TEXT_SECONDARY).size(12.0));
+                            let mb = snapshot.total_bytes_sent as f64 / (1024.0 * 1024.0);
+                            ui.label(
+                                RichText::new(format!("{:.1} MB", mb))
+                                    .monospace()
+                                    .strong()
+                                    .color(TEXT_PRIMARY)
+                                    .size(12.0),
+                            );
+                        });
+
                         ui.add_space(14.0);
-                        ui.label(RichText::new("ESTABILIDAD DE BÚFER WI-FI (SRT)").color(TEXT_MUTED).size(10.0));
+                        ui.label(RichText::new("ESTADO DE ENVÍO (UDP/LAN)").color(TEXT_MUTED).size(10.0));
+                        let net_state = if !snapshot.is_streaming {
+                            "Inactivo"
+                        } else if bitrate_display > 0.05 {
+                            "Enviando a la laptop"
+                        } else {
+                            "Esperando destino / sin datos"
+                        };
                         ui.label(
-                            RichText::new("Búfer de absorción: 1.000 ms")
-                                .color(TEXT_SECONDARY)
+                            RichText::new(net_state)
+                                .color(if bitrate_display > 0.05 { ACCENT_LIVE } else { TEXT_SECONDARY })
                                 .size(11.0),
                         );
-                        draw_buffer_health_bar(ui, if snapshot.is_streaming { 920 } else { 0 }, 1000, ui.available_width());
+                        // Health reflects real throughput: 0 when idle, proportional to bitrate.
+                        let health = (bitrate_display.max(0.0) * 40.0).min(1000.0) as u32;
+                        draw_buffer_health_bar(ui, health, 1000, ui.available_width());
 
                         ui.add_space(14.0);
                         ui.label(RichText::new("💡 SUGERENCIA DE TRANSMISIÓN:").color(TEXT_MUTED).size(10.0));

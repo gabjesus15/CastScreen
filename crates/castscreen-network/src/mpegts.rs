@@ -13,6 +13,24 @@ pub const PID_PMT: u16 = 0x1000;
 pub const PID_VIDEO: u16 = 0x0100;
 pub const PID_AUDIO: u16 = 0x0101;
 
+/// Computes the MPEG-2 systems CRC-32 (polynomial 0x04C11DB7, no final XOR)
+/// used to terminate PSI sections (PAT / PMT). Players validate this checksum,
+/// so it must be real, not a placeholder.
+pub(crate) fn crc32_mpeg(data: &[u8]) -> u32 {
+    let mut crc: u32 = 0xFFFF_FFFF;
+    for &byte in data {
+        crc ^= (byte as u32) << 24;
+        for _ in 0..8 {
+            if crc & 0x8000_0000 != 0 {
+                crc = (crc << 1) ^ 0x04C1_1DB7;
+            } else {
+                crc <<= 1;
+            }
+        }
+    }
+    crc
+}
+
 pub struct MpegTsMuxer {
     pat_continuity: u8,
     pmt_continuity: u8,
@@ -249,11 +267,12 @@ impl MpegTsMuxer {
         pat_packet[15] = 0xE0 | (((PID_PMT >> 8) & 0x1F) as u8);
         pat_packet[16] = (PID_PMT & 0xFF) as u8;
 
-        // CRC-32 (Placeholder MPEG-TS standard checksum)
-        pat_packet[17] = 0x2A;
-        pat_packet[18] = 0xB1;
-        pat_packet[19] = 0x04;
-        pat_packet[20] = 0xB2;
+        // CRC-32 over the section (table_id .. last program byte), big-endian.
+        let crc = crc32_mpeg(&pat_packet[5..17]);
+        pat_packet[17] = ((crc >> 24) & 0xFF) as u8;
+        pat_packet[18] = ((crc >> 16) & 0xFF) as u8;
+        pat_packet[19] = ((crc >> 8) & 0xFF) as u8;
+        pat_packet[20] = (crc & 0xFF) as u8;
 
         output.extend_from_slice(&pat_packet);
     }
@@ -304,11 +323,12 @@ impl MpegTsMuxer {
         pmt_packet[25] = 0xF0;
         pmt_packet[26] = 0x00;
 
-        // CRC-32
-        pmt_packet[27] = 0x4E;
-        pmt_packet[28] = 0x59;
-        pmt_packet[29] = 0x3D;
-        pmt_packet[30] = 0x1E;
+        // CRC-32 over the section (table_id .. last stream-info byte), big-endian.
+        let crc = crc32_mpeg(&pmt_packet[5..27]);
+        pmt_packet[27] = ((crc >> 24) & 0xFF) as u8;
+        pmt_packet[28] = ((crc >> 16) & 0xFF) as u8;
+        pmt_packet[29] = ((crc >> 8) & 0xFF) as u8;
+        pmt_packet[30] = (crc & 0xFF) as u8;
 
         output.extend_from_slice(&pmt_packet);
     }
@@ -327,6 +347,8 @@ impl Default for MpegTsMuxer {
 pub struct MpegTsDemuxer {
     video_pes_buffer: Vec<u8>,
     completed_video_frames: Vec<Vec<u8>>,
+    audio_pes_buffer: Vec<u8>,
+    completed_audio_frames: Vec<Vec<u8>>,
     leftover: Vec<u8>,
 }
 
@@ -341,6 +363,8 @@ impl MpegTsDemuxer {
         Self {
             video_pes_buffer: Vec::with_capacity(262144),
             completed_video_frames: Vec::new(),
+            audio_pes_buffer: Vec::with_capacity(65536),
+            completed_audio_frames: Vec::new(),
             leftover: Vec::with_capacity(TS_PACKET_SIZE * 2),
         }
     }
@@ -375,39 +399,47 @@ impl MpegTsDemuxer {
         let pid = (((packet[1] & 0x1F) as u16) << 8) | (packet[2] as u16);
         let adapt_ctrl = (packet[3] >> 4) & 0x03;
 
-        if pid == PID_VIDEO {
-            let mut payload_offset = 4;
-
-            // Handle adaptation field
-            if adapt_ctrl == 0b10 {
-                // Adaptation field only, no payload
-                return;
-            } else if adapt_ctrl == 0b11 {
-                // Adaptation field followed by payload
-                let adapt_len = packet[4] as usize;
-                payload_offset = 5 + adapt_len;
-                if payload_offset >= TS_PACKET_SIZE {
-                    return;
-                }
-            } else if adapt_ctrl == 0b00 {
-                // Reserved
-                return;
-            }
-
-            let ts_payload = &packet[payload_offset..TS_PACKET_SIZE];
-
-            if pusi {
-                // Start of a new PES packet: finalize previous video frame
-                if !self.video_pes_buffer.is_empty() {
-                    if let Some(frame) = Self::extract_pes_payload(&self.video_pes_buffer) {
-                        self.completed_video_frames.push(frame);
-                    }
-                    self.video_pes_buffer.clear();
-                }
-            }
-
-            self.video_pes_buffer.extend_from_slice(ts_payload);
+        if pid != PID_VIDEO && pid != PID_AUDIO {
+            return;
         }
+
+        let mut payload_offset = 4;
+
+        // Handle adaptation field
+        if adapt_ctrl == 0b10 {
+            // Adaptation field only, no payload
+            return;
+        } else if adapt_ctrl == 0b11 {
+            // Adaptation field followed by payload
+            let adapt_len = packet[4] as usize;
+            payload_offset = 5 + adapt_len;
+            if payload_offset >= TS_PACKET_SIZE {
+                return;
+            }
+        } else if adapt_ctrl == 0b00 {
+            // Reserved
+            return;
+        }
+
+        let ts_payload = &packet[payload_offset..TS_PACKET_SIZE];
+
+        let (pes_buffer, completed) = if pid == PID_VIDEO {
+            (&mut self.video_pes_buffer, &mut self.completed_video_frames)
+        } else {
+            (&mut self.audio_pes_buffer, &mut self.completed_audio_frames)
+        };
+
+        if pusi {
+            // Start of a new PES packet: finalize the previous elementary frame.
+            if !pes_buffer.is_empty() {
+                if let Some(frame) = Self::extract_pes_payload(pes_buffer) {
+                    completed.push(frame);
+                }
+                pes_buffer.clear();
+            }
+        }
+
+        pes_buffer.extend_from_slice(ts_payload);
     }
 
     fn extract_pes_payload(pes: &[u8]) -> Option<Vec<u8>> {
@@ -442,13 +474,28 @@ impl MpegTsDemuxer {
         }
     }
 
-    /// Flushes any pending video PES packet currently in the buffer.
+    /// Retrieves the next available audio frame payload (interleaved i16 LE PCM).
+    pub fn next_audio_frame(&mut self) -> Option<Vec<u8>> {
+        if !self.completed_audio_frames.is_empty() {
+            Some(self.completed_audio_frames.remove(0))
+        } else {
+            None
+        }
+    }
+
+    /// Flushes any pending PES packets currently in the buffers.
     pub fn flush(&mut self) {
         if !self.video_pes_buffer.is_empty() {
             if let Some(frame) = Self::extract_pes_payload(&self.video_pes_buffer) {
                 self.completed_video_frames.push(frame);
             }
             self.video_pes_buffer.clear();
+        }
+        if !self.audio_pes_buffer.is_empty() {
+            if let Some(frame) = Self::extract_pes_payload(&self.audio_pes_buffer) {
+                self.completed_audio_frames.push(frame);
+            }
+            self.audio_pes_buffer.clear();
         }
     }
 }
@@ -496,6 +543,53 @@ mod tests {
 
         assert_eq!(frame1, original_frame_1);
         assert_eq!(frame2, original_frame_2);
+    }
+
+    #[test]
+    fn test_audio_roundtrip() {
+        let mut muxer = MpegTsMuxer::new();
+        let mut demuxer = MpegTsDemuxer::new();
+
+        // Two audio PCM payloads interleaved with a video keyframe (which triggers
+        // PAT/PMT injection) to exercise multi-PID demultiplexing.
+        let audio_1 = vec![0x11u8; 3072];
+        let audio_2 = vec![0x22u8; 3072];
+
+        let v = MediaPacket::new_video(90_000, 90_000, vec![0x33; 2048], true);
+        let a1 = MediaPacket::new_audio(90_000, audio_1.clone());
+        let a2 = MediaPacket::new_audio(91_920, audio_2.clone());
+
+        demuxer.feed_ts_bytes(&muxer.mux_packet(&v));
+        demuxer.feed_ts_bytes(&muxer.mux_packet(&a1));
+        demuxer.feed_ts_bytes(&muxer.mux_packet(&a2));
+        demuxer.flush();
+
+        let got1 = demuxer.next_audio_frame().expect("Audio 1 missing");
+        let got2 = demuxer.next_audio_frame().expect("Audio 2 missing");
+        assert_eq!(got1, audio_1);
+        assert_eq!(got2, audio_2);
+    }
+
+    #[test]
+    fn test_psi_crc_matches_section() {
+        let mut muxer = MpegTsMuxer::new();
+        let ts = muxer.mux_packet(&MediaPacket::new_video(0, 0, vec![0x00; 32], true));
+
+        // Packet 0 = PAT (CRC over bytes 5..17, stored at 17..21).
+        let pat = &ts[0..TS_PACKET_SIZE];
+        let pat_crc = crc32_mpeg(&pat[5..17]).to_be_bytes();
+        assert_eq!(&pat[17..21], &pat_crc);
+
+        // Packet 1 = PMT (CRC over bytes 5..27, stored at 27..31).
+        let pmt = &ts[TS_PACKET_SIZE..TS_PACKET_SIZE * 2];
+        let pmt_crc = crc32_mpeg(&pmt[5..27]).to_be_bytes();
+        assert_eq!(&pmt[27..31], &pmt_crc);
+    }
+
+    #[test]
+    fn test_crc32_mpeg_known_vector() {
+        // "123456789" under CRC-32/MPEG-2 => 0x0376E6E7.
+        assert_eq!(crc32_mpeg(b"123456789"), 0x0376_E6E7);
     }
 }
 

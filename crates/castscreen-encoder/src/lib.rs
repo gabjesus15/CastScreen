@@ -3,5 +3,5 @@
 pub mod aac;
 pub mod nvenc;
 
-pub use aac::{AacEncodeError, AacEncoder};
+pub use aac::{decode_pcm_payload, AacEncodeError, AacEncoder};
 pub use nvenc::{NvencEncoder, NvencError};

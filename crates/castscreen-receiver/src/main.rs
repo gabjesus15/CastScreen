@@ -5,9 +5,8 @@
 //! Receives synchronized MPEG-TS/SRT stream, renders hardware-accelerated 60 FPS preview,
 //! plays audio in real time, and provides clean window capture for TikTok Live Studio and OBS.
 
+mod audio_out;
 mod hud;
-mod player;
-mod preview;
 
 use anyhow::Result;
 use castscreen_core::{NetworkConfig, SingleInstanceGuard};
