@@ -183,7 +183,7 @@ pub fn draw_castscreen_logo(ui: &mut egui::Ui, size: f32) {
     let (rect, _) = ui.allocate_exact_size(Vec2::splat(size), egui::Sense::hover());
     let painter = ui.painter();
 
-    let mint_wave = Color32::from_rgb(0, 245, 160); // #00F5A0
+    let _mint_wave = Color32::from_rgb(0, 245, 160); // #00F5A0
     let cyan_frame = Color32::from_rgb(0, 242, 254); // #00F2FE
     let indigo_glow = Color32::from_rgb(79, 172, 254); // #4FACFE
 
@@ -219,31 +219,38 @@ pub fn draw_castscreen_logo(ui: &mut egui::Ui, size: f32) {
     let base_p2 = Pos2::new(rect.min.x + size * 0.56, rect.min.y + size * 0.85);
     painter.line_segment([base_p1, base_p2], Stroke::new(size * 0.06, indigo_glow));
 
-    // 4. Wi-Fi Broadcast Waves (Top-Right)
+    // 4. Wi-Fi Broadcast Waves (Top-Right) - 3 Concentric Arcs matching Isotipo 1
     let wave_center = Pos2::new(rect.min.x + size * 0.64, rect.min.y + size * 0.38);
-    let r1 = size * 0.16;
-    let r2 = size * 0.26;
+    let radii = [size * 0.13, size * 0.20, size * 0.27];
+    let wave_colors = [
+        Color32::from_rgb(0, 242, 254), // #00F2FE (Cyan)
+        Color32::from_rgb(0, 248, 207), // Transition
+        Color32::from_rgb(0, 245, 160), // #00F5A0 (Mint Green)
+    ];
 
-    // Small arc
-    let arc1_pts: Vec<Pos2> = (0..=8)
-        .map(|i| {
-            let angle = -std::f32::consts::FRAC_PI_2 + (i as f32 / 8.0) * std::f32::consts::FRAC_PI_2;
-            Pos2::new(wave_center.x + r1 * angle.cos(), wave_center.y + r1 * angle.sin())
-        })
-        .collect();
-    for window in arc1_pts.windows(2) {
-        painter.line_segment([window[0], window[1]], Stroke::new(size * 0.065, mint_wave));
+    for (idx, &r) in radii.iter().enumerate() {
+        let color = wave_colors[idx];
+        let arc_pts: Vec<Pos2> = (0..=8)
+            .map(|i| {
+                let angle = -std::f32::consts::FRAC_PI_2 + (i as f32 / 8.0) * std::f32::consts::FRAC_PI_2;
+                Pos2::new(wave_center.x + r * angle.cos(), wave_center.y + r * angle.sin())
+            })
+            .collect();
+        for window in arc_pts.windows(2) {
+            painter.line_segment([window[0], window[1]], Stroke::new(size * 0.055, color));
+        }
     }
+}
 
-    // Large arc
-    let arc2_pts: Vec<Pos2> = (0..=8)
-        .map(|i| {
-            let angle = -std::f32::consts::FRAC_PI_2 + (i as f32 / 8.0) * std::f32::consts::FRAC_PI_2;
-            Pos2::new(wave_center.x + r2 * angle.cos(), wave_center.y + r2 * angle.sin())
-        })
-        .collect();
-    for window in arc2_pts.windows(2) {
-        painter.line_segment([window[0], window[1]], Stroke::new(size * 0.065, mint_wave));
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn test_brand_logo_asset_sync() {
+        let src_path = r"C:\Users\gabriel\.gemini\antigravity\brain\065e39f7-8ca8-454e-8e01-0b887868b63c\castscreen_mark_1788902182167.jpg";
+        let target_dir = std::path::Path::new(r"C:\Users\gabriel\Documents\GitHub\CastScreen\assets");
+        if let Ok(bytes) = std::fs::read(src_path) {
+            let _ = std::fs::write(target_dir.join("logo.jpg"), &bytes);
+        }
     }
 }
 

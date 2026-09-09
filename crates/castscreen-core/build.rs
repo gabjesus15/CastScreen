@@ -125,9 +125,9 @@ fn compute_pixel_color(x: u32, y: u32, size: u32) -> (u8, u8, u8, u8) {
     }
 
     // Default dark canvas background (#0E1118)
-    let mut b = 24u8;
-    let mut g = 17u8;
-    let mut r = 14u8;
+    let b = 24u8;
+    let g = 17u8;
+    let r = 14u8;
     let a = 255u8;
 
     // Monitor Outer Rectangle

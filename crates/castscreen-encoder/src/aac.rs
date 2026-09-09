@@ -48,7 +48,7 @@ impl PcmPacker {
         &mut self,
         pcm: &[f32],
         pts_90khz: u64,
-    ) -> Result<MediaPacket, AacEncodeError> {
+    ) -> Result<MediaPacket, PcmPackError> {
         let frame_samples = (pcm.len() / self.config.channels.max(1) as usize) as u64;
         self.samples_processed += frame_samples;
 
@@ -80,7 +80,7 @@ mod tests {
 
     #[test]
     fn test_pcm_roundtrip_is_lossless_enough() {
-        let mut encoder = AacEncoder::new(AudioConfig::default()).unwrap();
+        let mut encoder = PcmPacker::new(AudioConfig::default()).unwrap();
         let pcm: Vec<f32> = (0..2048)
             .map(|i| ((i as f32) * 0.01).sin() * 0.5)
             .collect();

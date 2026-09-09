@@ -1,6 +1,13 @@
-# 📡 CastScreen
+<p align="center">
+  <img src="assets/logo.jpg" width="160" height="160" alt="CastScreen Logo" style="border-radius: 28px;" />
+</p>
 
-> **Solución de streaming de doble PC ultraligera por red local (LAN), con sincronización matemática perfecta de audio y video, mezclador de aplicaciones integrado y cero impacto en FPS de juego.**
+<h1 align="center">📡 CastScreen</h1>
+
+<p align="center">
+  <strong>Solución de streaming de doble PC ultraligera por red local (LAN), con sincronización matemática perfecta de audio y video, mezclador de aplicaciones integrado y cero impacto en FPS de juego.</strong>
+</p>
+
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-purple.svg)](https://opensource.org/licenses/MIT)
 [![Rust](https://img.shields.io/badge/Language-Rust%202021-orange.svg)](https://www.rust-lang.org/)
