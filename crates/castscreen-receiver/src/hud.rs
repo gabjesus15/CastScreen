@@ -205,10 +205,8 @@ impl eframe::App for ReceiverGuiApp {
             self.clean_mode_since = None;
         }
 
-        if !self.clean_capture_mode {
-            self.chrome(ctx);
-            self.audio_dock(ctx);
-        }
+        self.chrome(ctx);
+        self.audio_dock(ctx);
         self.viewport(ctx);
         self.leave_sheet(ctx);
 
@@ -224,7 +222,7 @@ impl ReceiverGuiApp {
                 material(Layer::Chrome)
                     .inner_margin(egui::Margin::symmetric(space::LG, space::SM)),
             )
-            .show(ctx, |ui| {
+            .show_animated(ctx, !self.clean_capture_mode, |ui| {
                 ui.horizontal(|ui| {
                     // Same control, same corner, same meaning as in the sender.
                     if button(ui, ty::CAPTION.text("←  Cambiar de modo"), ButtonStyle::Quiet)
@@ -294,7 +292,7 @@ impl ReceiverGuiApp {
                 material(Layer::Chrome)
                     .inner_margin(egui::Margin::symmetric(space::LG, space::SM)),
             )
-            .show(ctx, |ui| {
+            .show_animated(ctx, !self.clean_capture_mode, |ui| {
                 ui.horizontal(|ui| {
                     ui.label(ty::OVERLINE.colored("AUDIO", TEXT_MUTED));
                     ui.add_space(space::SM);

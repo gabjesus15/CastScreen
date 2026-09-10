@@ -1,0 +1,11 @@
+[package]
+name = "castscreen-virtual-monitor"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+anyhow = { workspace = true }
+ureq = { workspace = true }
+zip = "0.6"
+tracing = { workspace = true }
+directories = "5.0"

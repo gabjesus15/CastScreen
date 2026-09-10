@@ -10,6 +10,7 @@ castscreen-core = { workspace = true }
 castscreen-capture = { workspace = true }
 castscreen-encoder = { workspace = true }
 castscreen-network = { workspace = true }
+castscreen-virtual-monitor = { workspace = true }
 windows.workspace = true
 crossbeam-channel.workspace = true
 parking_lot.workspace = true

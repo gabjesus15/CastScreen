@@ -37,7 +37,7 @@ fn main() -> Result<()> {
     let native_options = eframe::NativeOptions {
         vsync: true,
         viewport: eframe::egui::ViewportBuilder::default()
-            .with_fullscreen(true)
+            .with_inner_size([1200.0, 800.0])
             .with_min_inner_size([800.0, 500.0])
             .with_icon(castscreen_core::theme::load_window_icon())
             .with_title(&title),

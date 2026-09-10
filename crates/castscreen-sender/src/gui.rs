@@ -20,8 +20,8 @@ use castscreen_capture::AudioSessionController;
 use castscreen_core::{
     button, chip, configure_dark_studio_theme, draw_buffer_health_bar, draw_castscreen_logo,
     draw_live_badge, draw_vu_meter, fill_screen, material, material_accented, scroll_edge, section_label, sheet,
-    sheet_header, space, stat_row, switch, text as ty, update_chip, update_sheet, AppUpdater,
-    launch_launcher, ButtonStyle, Dismiss, Fill, Layer, FILL_SCREEN_FRAMES, TrayNotifier, UpdateState, ACCENT_BRAND,
+    sheet_header, space, spring, stat_row, switch, text as ty, update_chip, update_sheet, AppUpdater,
+    launch_launcher, ButtonStyle, Dismiss, Fill, Layer, Motion, FILL_SCREEN_FRAMES, TrayNotifier, UpdateState, ACCENT_BRAND,
     ACCENT_DANGER, ACCENT_LIVE, ACCENT_WARN, CURRENT_VERSION, TEXT_MUTED, TEXT_PRIMARY,
     TEXT_SECONDARY,
 };
@@ -379,15 +379,21 @@ impl SenderGuiApp {
     ) {
         material(Layer::Surface).show(ui, |ui| {
             egui::ScrollArea::vertical().id_source("network-panel").show(ui, |ui| {
-                // A failure is the only thing allowed to take the top of this
-                // panel, and only while it is actually failing.
-                if let Some(error) = &snapshot.pipeline_error {
-                    material_accented(Layer::Raised, ACCENT_DANGER).show(ui, |ui| {
-                        ui.label(ty::BODY_EMPHASIS.colored("La captura se detuvo", ACCENT_DANGER));
-                        ui.add_space(space::XS);
-                        ui.label(ty::CALLOUT.colored(error.as_str(), TEXT_SECONDARY));
-                    });
-                    ui.add_space(space::MD);
+                let error_visible = snapshot.pipeline_error.is_some();
+                let error_t = spring(ui.ctx(), egui::Id::new("network_error_spring"), if error_visible { 1.0 } else { 0.0 }, Motion::SHEET);
+                
+                if error_t > 0.001 {
+                    if let Some(error) = &snapshot.pipeline_error {
+                        // Smoothly fade the error in/out
+                        ui.set_opacity(error_t);
+                        material_accented(Layer::Raised, ACCENT_DANGER).show(ui, |ui| {
+                            ui.label(ty::BODY_EMPHASIS.colored("La captura se detuvo", ACCENT_DANGER));
+                            ui.add_space(space::XS);
+                            ui.label(ty::CALLOUT.colored(error.as_str(), TEXT_SECONDARY));
+                        });
+                        ui.add_space(space::MD);
+                        ui.set_opacity(1.0); // Reset for the rest of the panel
+                    }
                 }
 
                 ui.label(ty::HEADLINE.colored("Destino", TEXT_PRIMARY));
@@ -480,7 +486,25 @@ impl SenderGuiApp {
                     }
                 });
             });
-            return;
+            // We still want to show the Virtual Monitor option if no extra screens are found
+        }
+        
+        // Virtual monitor button
+        ui.add_space(space::SM);
+        if !castscreen_virtual_monitor::is_installed() {
+            ui.horizontal(|ui| {
+                if button(
+                    ui,
+                    ty::CAPTION.text("Instalar Monitor Virtual (Beta)"),
+                    ButtonStyle::Tinted(ACCENT_BRAND),
+                ).on_hover_text("Extiende el escritorio usando un driver IDD (requiere permisos de Administrador)").clicked()
+                {
+                    if let Err(e) = castscreen_virtual_monitor::install() {
+                        tracing::error!("Failed to install virtual monitor: {e}");
+                    }
+                }
+            });
+            ui.add_space(space::SM);
         }
 
         for monitor in &snapshot.detected_monitors {

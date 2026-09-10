@@ -7,7 +7,7 @@ members = [
     "crates/castscreen-network",
     "crates/castscreen-receiver",
     "crates/castscreen-sender",
-    "crates/castscreen-launcher",
+    "crates/castscreen-launcher", "crates/castscreen-virtual-monitor",
 ]
 
 [workspace.package]
@@ -24,6 +24,7 @@ castscreen-core = { path = "crates/castscreen-core" }
 castscreen-capture = { path = "crates/castscreen-capture" }
 castscreen-encoder = { path = "crates/castscreen-encoder" }
 castscreen-network = { path = "crates/castscreen-network" }
+castscreen-virtual-monitor = { path = "crates/castscreen-virtual-monitor" }
 
 # Concurrency & Channels
 crossbeam-channel = "0.5"
