@@ -18,9 +18,20 @@ use std::sync::Arc;
 use std::thread::{self, JoinHandle};
 use std::time::Duration;
 
+/// Operating mode of the sender application.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum SenderMode {
+    /// Stream a physical display/game directly to the laptop for OBS/TikTok Live Studio.
+    #[default]
+    GameStream,
+    /// Duet Display mode: use the laptop as an extended secondary/tertiary monitor.
+    ExtendedDisplay,
+}
+
 /// Real-time dashboard state reported to the GUI.
 #[derive(Debug, Clone, Default)]
 pub struct SenderStateSnapshot {
+    pub mode: SenderMode,
     pub is_streaming: bool,
     pub current_fps: f32,
     pub bitrate_mbps: f32,
@@ -29,6 +40,7 @@ pub struct SenderStateSnapshot {
     pub detected_apps: Vec<AudioAppSession>,
     pub detected_monitors: Vec<MonitorInfo>,
     pub selected_monitor: u32,
+    pub virtual_monitor_index: Option<u32>,
     /// Set when DXGI or NVENC fail to initialize; shown as an error banner in the GUI.
     pub pipeline_error: Option<String>,
     /// True while a live TCP connection to the receiver is established.
@@ -47,9 +59,11 @@ impl StreamController {
     pub fn new(config: CastScreenConfig) -> Self {
         let monitors = DxgiScreenCapture::enumerate_monitors().unwrap_or_default();
         let selected = config.video.display_index;
+        let virtual_idx = monitors.iter().find(|m| m.is_virtual).map(|m| m.index);
         let mut initial_snapshot = SenderStateSnapshot::default();
         initial_snapshot.detected_monitors = monitors;
         initial_snapshot.selected_monitor = selected;
+        initial_snapshot.virtual_monitor_index = virtual_idx;
 
         Self {
             config,
@@ -64,6 +78,15 @@ impl StreamController {
     pub fn start_streaming(&mut self, target_ip: Option<String>) -> Result<()> {
         if self.is_running.load(Ordering::SeqCst) {
             return Ok(());
+        }
+
+        // Update config to match the selected monitor's actual resolution before initializing encoder
+        {
+            let snap = self.state_snapshot.read();
+            if let Some(monitor) = snap.detected_monitors.iter().find(|m| m.index == snap.selected_monitor) {
+                self.config.video.width = monitor.width;
+                self.config.video.height = monitor.height;
+            }
         }
 
         self.is_running.store(true, Ordering::SeqCst);
@@ -255,6 +278,22 @@ impl StreamController {
         }
     }
 
+    /// Sets the operational mode (Game Streaming vs Duet Extended Display).
+    pub fn set_mode(&mut self, mode: SenderMode) {
+        let mut snap = self.state_snapshot.write();
+        snap.mode = mode;
+        if mode == SenderMode::ExtendedDisplay {
+            if let Some(vm_idx) = snap.virtual_monitor_index {
+                snap.selected_monitor = vm_idx;
+                self.config.video.display_index = vm_idx;
+            } else if snap.detected_monitors.len() > 2 {
+                let last_idx = (snap.detected_monitors.len() - 1) as u32;
+                snap.selected_monitor = last_idx;
+                self.config.video.display_index = last_idx;
+            }
+        }
+    }
+
     /// Updates the target physical monitor to capture via DirectX 11.
     pub fn set_selected_monitor(&mut self, index: u32) {
         self.config.video.display_index = index;
@@ -262,9 +301,22 @@ impl StreamController {
     }
 
     /// Re-enumerates connected displays.
-    pub fn refresh_monitors(&self) {
+    pub fn refresh_monitors(&mut self) {
         if let Ok(monitors) = DxgiScreenCapture::enumerate_monitors() {
-            self.state_snapshot.write().detected_monitors = monitors;
+            let mut snap = self.state_snapshot.write();
+            let virtual_idx = monitors.iter().find(|m| m.is_virtual).map(|m| m.index);
+            snap.virtual_monitor_index = virtual_idx;
+            if snap.mode == SenderMode::ExtendedDisplay {
+                if let Some(vm_idx) = virtual_idx {
+                    snap.selected_monitor = vm_idx;
+                    self.config.video.display_index = vm_idx;
+                } else if monitors.len() > 2 {
+                    let last_idx = (monitors.len() - 1) as u32;
+                    snap.selected_monitor = last_idx;
+                    self.config.video.display_index = last_idx;
+                }
+            }
+            snap.detected_monitors = monitors;
         }
     }
 

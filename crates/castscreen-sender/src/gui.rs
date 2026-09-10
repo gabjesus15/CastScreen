@@ -15,7 +15,7 @@
 //!   is genuinely irreversible and cuts a live audience — and nothing else does,
 //!   so the question still means something when it appears.
 
-use crate::controller::StreamController;
+use crate::controller::{SenderMode, StreamController};
 use castscreen_capture::AudioSessionController;
 use castscreen_core::{
     button, chip, configure_dark_studio_theme, draw_buffer_health_bar, draw_castscreen_logo,
@@ -207,28 +207,77 @@ impl SenderGuiApp {
                     ui.add_space(space::MD);
                     draw_live_badge(ui, snapshot.is_streaming, elapsed_secs);
 
+                    // Mode switch tabs
+                    ui.add_space(space::LG);
+                    let is_game_stream = snapshot.mode == SenderMode::GameStream;
+                    let is_duet = snapshot.mode == SenderMode::ExtendedDisplay;
+
+                    if button(
+                        ui,
+                        ty::CAPTION.text("🎮  Transmitir Juego"),
+                        if is_game_stream {
+                            ButtonStyle::Primary(ACCENT_LIVE)
+                        } else {
+                            ButtonStyle::Quiet
+                        },
+                    )
+                    .on_hover_text("Envía tu pantalla física o juego a la laptop para emitir con OBS o TikTok Studio")
+                    .clicked()
+                    {
+                        if !snapshot.is_streaming {
+                            self.controller.set_mode(SenderMode::GameStream);
+                        }
+                    }
+
+                    if button(
+                        ui,
+                        ty::CAPTION.text("🖥️  Extender a Laptop (Duet)"),
+                        if is_duet {
+                            ButtonStyle::Primary(ACCENT_BRAND)
+                        } else {
+                            ButtonStyle::Quiet
+                        },
+                    )
+                    .on_hover_text("Convierte la laptop en un segundo/tercer monitor extendido con soporte para ratón")
+                    .clicked()
+                    {
+                        if !snapshot.is_streaming {
+                            self.controller.set_mode(SenderMode::ExtendedDisplay);
+                        }
+                    }
+
                     ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                        // The primary action names its consequence, so nobody
-                        // has to remember what state the stream is in to know
-                        // what this button will do.
+                        // The primary action names its consequence
                         if snapshot.is_streaming {
+                            let label = if snapshot.mode == SenderMode::ExtendedDisplay {
+                                "Desconectar pantalla"
+                            } else {
+                                "Detener transmisión"
+                            };
                             if button(
                                 ui,
-                                ty::BODY_EMPHASIS.text("Detener transmisión"),
+                                ty::BODY_EMPHASIS.text(label),
                                 ButtonStyle::Tinted(ACCENT_DANGER),
                             )
                             .clicked()
                             {
                                 self.stop_stream();
                             }
-                        } else if button(
-                            ui,
-                            ty::BODY_EMPHASIS.text("Iniciar transmisión"),
-                            ButtonStyle::Primary(ACCENT_LIVE),
-                        )
-                        .clicked()
-                        {
-                            self.start_stream();
+                        } else {
+                            let (label, style) = if snapshot.mode == SenderMode::ExtendedDisplay {
+                                ("Conectar Laptop como Monitor", ButtonStyle::Primary(ACCENT_BRAND))
+                            } else {
+                                ("Iniciar transmisión", ButtonStyle::Primary(ACCENT_LIVE))
+                            };
+                            if button(
+                                ui,
+                                ty::BODY_EMPHASIS.text(label),
+                                style,
+                            )
+                            .clicked()
+                            {
+                                self.start_stream();
+                            }
                         }
 
                         if button(ui, ty::CAPTION.text("Minimizar a bandeja"), ButtonStyle::Quiet)
@@ -258,11 +307,19 @@ impl SenderGuiApp {
     fn body(&mut self, ctx: &egui::Context, snapshot: &crate::controller::SenderStateSnapshot) {
         egui::CentralPanel::default()
             .frame(egui::Frame::none().inner_margin(space::LG))
-            .show(ctx, |ui| {
-                ui.columns(2, |columns| {
-                    self.mixer_panel(&mut columns[0], snapshot);
-                    self.network_panel(&mut columns[1], snapshot);
-                });
+            .show(ctx, |ui| match snapshot.mode {
+                SenderMode::GameStream => {
+                    ui.columns(2, |columns| {
+                        self.mixer_panel(&mut columns[0], snapshot);
+                        self.network_panel(&mut columns[1], snapshot);
+                    });
+                }
+                SenderMode::ExtendedDisplay => {
+                    ui.columns(2, |columns| {
+                        self.duet_guide_panel(&mut columns[0], snapshot);
+                        self.duet_network_panel(&mut columns[1], snapshot);
+                    });
+                }
             });
     }
 
@@ -486,45 +543,40 @@ impl SenderGuiApp {
                     }
                 });
             });
-            // We still want to show the Virtual Monitor option if no extra screens are found
-        }
-        
-        // Virtual monitor button
-        ui.add_space(space::SM);
-        if !castscreen_virtual_monitor::is_installed() {
-            ui.horizontal(|ui| {
-                if button(
-                    ui,
-                    ty::CAPTION.text("Instalar Monitor Virtual (Beta)"),
-                    ButtonStyle::Tinted(ACCENT_BRAND),
-                ).on_hover_text("Extiende el escritorio usando un driver IDD (requiere permisos de Administrador)").clicked()
-                {
-                    if let Err(e) = castscreen_virtual_monitor::install() {
-                        tracing::error!("Failed to install virtual monitor: {e}");
-                    }
-                }
-            });
-            ui.add_space(space::SM);
         }
 
-        for monitor in &snapshot.detected_monitors {
+        ui.add_space(space::SM);
+
+        // Show only physical displays for game streaming
+        let physical_monitors: Vec<_> = snapshot
+            .detected_monitors
+            .iter()
+            .filter(|m| !m.is_virtual)
+            .collect();
+
+        for monitor in physical_monitors {
             let selected = monitor.index == snapshot.selected_monitor;
             let frame = if selected {
                 material_accented(Layer::Raised, ACCENT_BRAND)
             } else {
                 material(Layer::Raised)
             };
+            let orient = if monitor.width >= monitor.height {
+                "Horizontal"
+            } else {
+                "Vertical"
+            };
             let clicked = frame
                 .inner_margin(space::SM)
                 .show(ui, |ui| {
                     ui.horizontal(|ui| {
                         ui.label(ty::CALLOUT.colored(
-                            format!("Pantalla {}", monitor.index + 1),
+                            format!("Pantalla {} ({})", monitor.index + 1, orient),
                             if selected { TEXT_PRIMARY } else { TEXT_SECONDARY },
                         ));
                         ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                             if selected {
-                                chip(ui, "Capturando", ACCENT_BRAND);
+                                chip(ui, "Transmitiendo", ACCENT_BRAND);
                             }
                             ui.label(ty::CAPTION.mono_colored(
                                 format!("{}×{}", monitor.width, monitor.height),
@@ -542,6 +594,184 @@ impl SenderGuiApp {
             }
             ui.add_space(space::XXS);
         }
+    }
+
+    fn duet_guide_panel(
+        &mut self,
+        ui: &mut egui::Ui,
+        snapshot: &crate::controller::SenderStateSnapshot,
+    ) {
+        material(Layer::Surface).show(ui, |ui| {
+            ui.label(ty::HEADLINE.colored("Escritorio Extendido (Duet)", TEXT_PRIMARY));
+            ui.add_space(space::SM);
+            ui.label(ty::CALLOUT.colored(
+                "Usa la pantalla de tu laptop como un segundo o tercer monitor real en tu PC.",
+                TEXT_SECONDARY,
+            ));
+            ui.add_space(space::LG);
+
+            // Virtual monitor detection
+            let has_virtual = snapshot.virtual_monitor_index.is_some()
+                || snapshot.detected_monitors.iter().any(|m| m.is_virtual)
+                || castscreen_virtual_monitor::is_installed();
+
+            material(Layer::Raised).inner_margin(space::MD).show(ui, |ui| {
+                ui.horizontal(|ui| {
+                    ui.label(ty::BODY_EMPHASIS.colored("Monitor Virtual (IDD)", TEXT_PRIMARY));
+                    ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                        if has_virtual {
+                            chip(ui, "✓ Listo y Detectado", ACCENT_LIVE);
+                        } else {
+                            chip(ui, "No instalado", ACCENT_WARN);
+                        }
+                    });
+                });
+
+                ui.add_space(space::SM);
+                if has_virtual {
+                    ui.label(ty::CAPTION.colored(
+                        "Windows ha registrado la pantalla virtual. Al conectar, tu escritorio se extenderá hacia la laptop.",
+                        TEXT_SECONDARY,
+                    ));
+                } else {
+                    ui.label(ty::CAPTION.colored(
+                        "Para que Windows cree una pantalla adicional sin conectar cables, se requiere instalar el driver IDD.",
+                        TEXT_MUTED,
+                    ));
+                    ui.add_space(space::SM);
+                    if button(
+                        ui,
+                        ty::BODY_EMPHASIS.text("Instalar Driver de Pantalla Virtual"),
+                        ButtonStyle::Primary(ACCENT_BRAND),
+                    )
+                    .on_hover_text("Descarga e instala el driver IDD (requiere permisos de Administrador)")
+                    .clicked()
+                    {
+                        if let Err(e) = castscreen_virtual_monitor::install() {
+                            tracing::error!("Error instalando monitor virtual: {e}");
+                        }
+                    }
+                }
+            });
+
+            ui.add_space(space::MD);
+
+            material(Layer::Raised).inner_margin(space::MD).show(ui, |ui| {
+                ui.label(ty::BODY_EMPHASIS.colored("Control y Experiencia de Usuario", TEXT_PRIMARY));
+                ui.add_space(space::XS);
+                ui.label(ty::CAPTION.colored(
+                    "• El puntero del ratón se dibuja automáticamente en la laptop con cero latencia.\n\
+                     • Puedes arrastrar ventanas de Discord, chat de TikTok o navegadores hacia la laptop.\n\
+                     • Para reorganizar la posición de las pantallas, usa la configuración nativa de Windows.",
+                    TEXT_SECONDARY,
+                ));
+
+                ui.add_space(space::MD);
+                if button(
+                    ui,
+                    ty::CAPTION.text("Abrir Configuración de Pantalla de Windows ↗"),
+                    ButtonStyle::Quiet,
+                )
+                .clicked()
+                {
+                    let _ = std::process::Command::new("powershell")
+                        .args(["-Command", "Start-Process ms-settings:display"])
+                        .spawn();
+                }
+            });
+        });
+    }
+
+    fn duet_network_panel(
+        &mut self,
+        ui: &mut egui::Ui,
+        snapshot: &crate::controller::SenderStateSnapshot,
+    ) {
+        material(Layer::Surface).show(ui, |ui| {
+            ui.horizontal(|ui| {
+                ui.label(ty::HEADLINE.colored("Laptop Destino", TEXT_PRIMARY));
+                ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                    if button(ui, ty::CAPTION.text("Refrescar pantallas"), ButtonStyle::Quiet).clicked() {
+                        self.controller.refresh_monitors();
+                    }
+                });
+            });
+
+            ui.add_space(space::MD);
+            let devices = self.discovery_scanner.get_devices();
+            if devices.is_empty() {
+                ui.label(ty::CALLOUT.colored(
+                    "Buscando laptop en la red local… Abre CastScreen en la laptop en modo receptor.",
+                    TEXT_MUTED,
+                ));
+            } else {
+                for device in &devices {
+                    let selected = self.target_ip == device.ip;
+                    let accent = if selected { ACCENT_LIVE } else { ACCENT_BRAND };
+                    material(Layer::Raised).inner_margin(space::SM).show(ui, |ui| {
+                        ui.horizontal(|ui| {
+                            ui.label(ty::CALLOUT.colored(&device.device_name, TEXT_PRIMARY));
+                            ui.label(ty::CAPTION.mono_colored(&device.ip, TEXT_MUTED));
+                            ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                                if selected {
+                                    chip(ui, "Laptop actual", accent);
+                                } else if button(
+                                    ui,
+                                    ty::CAPTION.text("Conectar a esta"),
+                                    ButtonStyle::Tinted(accent),
+                                )
+                                .clicked()
+                                {
+                                    self.target_ip = device.ip.clone();
+                                }
+                            });
+                        });
+                    });
+                    ui.add_space(space::XXS);
+                }
+            }
+
+            if snapshot.is_streaming {
+                ui.add_space(space::SM);
+                if snapshot.network_connected {
+                    chip(ui, format!("Enlazado con {}", self.target_ip), ACCENT_LIVE);
+                } else {
+                    chip(ui, format!("Conectando con {}…", self.target_ip), ACCENT_WARN);
+                }
+            }
+
+            ui.add_space(space::XL);
+            ui.label(ty::HEADLINE.colored("Pantalla Transmitida", TEXT_PRIMARY));
+            ui.add_space(space::MD);
+
+            let current_target = snapshot
+                .detected_monitors
+                .iter()
+                .find(|m| m.index == snapshot.selected_monitor);
+
+            material(Layer::Raised).inner_margin(space::SM).show(ui, |ui| {
+                ui.horizontal(|ui| {
+                    if let Some(m) = current_target {
+                        let label = if m.is_virtual {
+                            format!("Pantalla Virtual ({}×{})", m.width, m.height)
+                        } else {
+                            format!("Pantalla {} ({}×{})", m.index + 1, m.width, m.height)
+                        };
+                        ui.label(ty::CALLOUT.colored(label, TEXT_PRIMARY));
+                    } else {
+                        ui.label(ty::CALLOUT.colored("Buscando pantalla para extender…", TEXT_MUTED));
+                    }
+                    ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                        chip(ui, "Puntero visible", ACCENT_BRAND);
+                    });
+                });
+            });
+
+            ui.add_space(space::XL);
+            ui.label(ty::HEADLINE.colored("Rendimiento en vivo", TEXT_PRIMARY));
+            ui.add_space(space::MD);
+            self.telemetry(ui, snapshot);
+        });
     }
 
     fn telemetry(&self, ui: &mut egui::Ui, snapshot: &crate::controller::SenderStateSnapshot) {
